@@ -1,0 +1,9 @@
+# Entorno virtual de Python
+.venv/
+
+# Configuración de PyCharm
+.idea/
+
+# Archivos temporales de Python
+__pycache__/
+*.pyc
