@@ -105,6 +105,14 @@ class NodoArbol:
                 return hijo
         return None
 
+    def liberar(self):
+        """Desconecta todas las referencias del nodo para garantizar la
+        liberacion de memoria por el recolector de basura y evitar nodos huerfanos.
+        """
+        self.padre = None
+        self.hijos.clear()
+        self.contenido = ""
+
     # ------------------------------------------------------------------
     # Representacion y rutas
     # ------------------------------------------------------------------
