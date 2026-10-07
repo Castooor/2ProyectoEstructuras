@@ -1,45 +1,47 @@
+from collections import deque
+
+
 class GrafoServidores:
+    """Grafo ponderado no dirigido. Vértices = servidores, aristas = latencia (ms)."""
+
     def __init__(self):
-        # Diccionario para representar el grafo (Lista de adyacencia)
-        # Estructura: { "ServidorA": {"ServidorB": latencia, "ServidorC": latencia}, ... }
+        # Lista de adyacencia: { "A": {"B": latencia, "C": latencia}, ... }
         self.servidores = {}
 
+    # ------------------------------------------------------------------
+    # Operaciones básicas
+    # ------------------------------------------------------------------
     def agregar_servidor(self, servidor):
         """Agrega un servidor (vértice) a la red."""
         if servidor not in self.servidores:
             self.servidores[servidor] = {}
 
     def agregar_conexion(self, origen, destino, latencia):
-        """Agrega una conexión (arista) entre dos servidores con un peso (latencia)."""
-        if origen not in self.servidores:
-            self.agregar_servidor(origen)
-        if destino not in self.servidores:
-            self.agregar_servidor(destino)
-        
-        # Asumimos conexiones bidireccionales en la red
+        """Agrega una conexión bidireccional con peso = latencia."""
+        if latencia < 0:
+            raise ValueError("La latencia no puede ser negativa (Dijkstra no lo soporta).")
+        self.agregar_servidor(origen)
+        self.agregar_servidor(destino)
         self.servidores[origen][destino] = latencia
         self.servidores[destino][origen] = latencia
 
     def eliminar_conexion(self, origen, destino):
-        """Elimina una conexión entre dos servidores."""
-        if origen in self.servidores and destino in self.servidores[origen]:
-            del self.servidores[origen][destino]
-        if destino in self.servidores and origen in self.servidores[destino]:
-            del self.servidores[destino][origen]
+        """Elimina la conexión entre dos servidores."""
+        if origen in self.servidores:
+            self.servidores[origen].pop(destino, None)
+        if destino in self.servidores:
+            self.servidores[destino].pop(origen, None)
 
     def consultar_conexiones(self, servidor):
-        """Devuelve un diccionario con las conexiones y latencias de un servidor."""
-        if servidor in self.servidores:
-            return self.servidores[servidor]
-        return None
+        """Devuelve {vecino: latencia} o None si el servidor no existe."""
+        return self.servidores.get(servidor)
 
     def mostrar_red(self):
-        """Muestra la estructura actual de la red de servidores."""
+        """Imprime la estructura actual de la red."""
         print("--- Red de Servidores ---")
         if not self.servidores:
             print("La red está vacía.")
             return
-        
         for servidor, conexiones in self.servidores.items():
             if not conexiones:
                 print(f"Servidor {servidor}: Sin conexiones (Aislado)")
@@ -48,161 +50,141 @@ class GrafoServidores:
                 print(f"Servidor {servidor} conectado a: {', '.join(conns)}")
         print("-------------------------")
 
+    # ------------------------------------------------------------------
+    # Dijkstra (desde cero, O(V^2))
+    # ------------------------------------------------------------------
     def dijkstra(self, origen, destino):
         """
-        Implementa el algoritmo de Dijkstra desde cero.
-        Encuentra la ruta de menor costo (latencia) entre un servidor origen y un destino.
+        Ruta de menor latencia entre origen y destino.
+        Devuelve (ruta, costo_total) o None si no existe ruta / servidores.
+        No imprime: usar imprimir_ruta() para mostrar el resultado.
         """
         if origen not in self.servidores or destino not in self.servidores:
-            print("El origen o destino no existen en la red.")
             return None
 
-        # Inicialización
-        distancias = {nodo: float('infinity') for nodo in self.servidores}
+        if origen == destino:
+            return [origen], 0
+
+        distancias = {nodo: float("inf") for nodo in self.servidores}
         predecesores = {nodo: None for nodo in self.servidores}
         distancias[origen] = 0
-        nodos_no_visitados = list(self.servidores.keys())
+        no_visitados = set(self.servidores)
 
-        while nodos_no_visitados:
-            # Seleccionar el nodo de menor costo de los no visitados
-            nodo_actual = None
-            menor_distancia = float('infinity')
-            for nodo in nodos_no_visitados:
-                if distancias[nodo] < menor_distancia:
-                    menor_distancia = distancias[nodo]
-                    nodo_actual = nodo
+        while no_visitados:
+            # Nodo no visitado con menor distancia acumulada
+            actual = None
+            menor = float("inf")
+            for nodo in no_visitados:
+                if distancias[nodo] < menor:
+                    menor = distancias[nodo]
+                    actual = nodo
 
-            # Si no hay nodo actual alcanzable, o ya llegamos al destino, terminamos
-            if nodo_actual is None or menor_distancia == float('infinity'):
-                break 
-            
-            if nodo_actual == destino:
+            # Los que quedan son inalcanzables, o ya llegamos al destino
+            if actual is None or actual == destino:
                 break
-            
-            nodos_no_visitados.remove(nodo_actual)
 
-            # Actualizar distancias de los vecinos
-            for vecino, latencia in self.servidores[nodo_actual].items():
-                if vecino in nodos_no_visitados:
-                    nueva_distancia = distancias[nodo_actual] + latencia
-                    if nueva_distancia < distancias[vecino]:
-                        distancias[vecino] = nueva_distancia
-                        predecesores[vecino] = nodo_actual
+            no_visitados.remove(actual)
 
-        # Reconstruir la ruta origen → destino
-        ruta = []
-        nodo_paso = destino
-        while nodo_paso is not None:
-            ruta.insert(0, nodo_paso)
-            nodo_paso = predecesores[nodo_paso]
+            # Relajación de aristas
+            for vecino, latencia in self.servidores[actual].items():
+                if vecino in no_visitados:
+                    nueva = distancias[actual] + latencia
+                    if nueva < distancias[vecino]:
+                        distancias[vecino] = nueva
+                        predecesores[vecino] = actual
 
-        if distancias[destino] == float('infinity'):
-            print(f"No hay ruta posible desde {origen} hasta {destino}")
+        if distancias[destino] == float("inf"):
             return None
 
-        # Mostrar resultados según requerimientos
-        costo_total = distancias[destino]
-        saltos_intermedios = ruta[1:-1]
-        
-        print("\n--- Simulación de Envío (Dijkstra) ---")
-        print(f"Origen: {origen}")
-        print(f"Destino: {destino}")
-        print(f"Saltos intermedios: {' -> '.join(saltos_intermedios) if saltos_intermedios else 'Ninguno (Conexión directa)'}")
-        print(f"Ruta completa: {' -> '.join(ruta)}")
-        print(f"Costo total (Latencia): {costo_total} ms")
-        print("--------------------------------------")
-        return ruta, costo_total
+        # Reconstrucción de la ruta destino -> origen, luego se invierte
+        ruta = []
+        paso = destino
+        while paso is not None:
+            ruta.append(paso)
+            paso = predecesores[paso]
+        ruta.reverse()
 
+        return ruta, distancias[destino]
+
+    def imprimir_ruta(self, origen, destino):
+        """Ejecuta Dijkstra y muestra el resultado. Devuelve lo mismo que dijkstra()."""
+        resultado = self.dijkstra(origen, destino)
+        print("\n--- Simulación de Envío (Dijkstra) ---")
+        if resultado is None:
+            print(f"No hay ruta posible desde {origen} hasta {destino} "
+                  f"(o alguno no existe en la red).")
+        else:
+            ruta, costo = resultado
+            intermedios = ruta[1:-1]
+            print(f"Origen: {origen}")
+            print(f"Destino: {destino}")
+            if origen == destino:
+                print("Origen y destino son el mismo servidor.")
+            else:
+                print("Saltos intermedios: "
+                      f"{' -> '.join(intermedios) if intermedios else 'Ninguno (Conexión directa)'}")
+            print(f"Ruta completa: {' -> '.join(ruta)}")
+            print(f"Costo total (Latencia): {costo} ms")
+        print("--------------------------------------")
+        return resultado
+
+    # ------------------------------------------------------------------
+    # Ping general (BFS)
+    # ------------------------------------------------------------------
     def ping_general(self):
         """
-        Implementa BFS para diagnosticar la red.
-        Determina si todos los servidores están comunicados o detecta aislados.
+        Diagnóstico con BFS. Devuelve un diccionario:
+          {
+            "conectada": bool,        # True si todos se comunican entre sí
+            "componentes": [[...]],   # grupos de servidores conectados
+            "aislados": [...]         # servidores sin ninguna conexión
+          }
+        No imprime: usar imprimir_diagnostico() para mostrarlo.
         """
+        visitados = set()
+        componentes = []
+
+        for servidor in self.servidores:
+            if servidor in visitados:
+                continue
+            grupo = []
+            cola = deque([servidor])
+            visitados.add(servidor)
+            while cola:
+                actual = cola.popleft()
+                grupo.append(actual)
+                for vecino in self.servidores[actual]:
+                    if vecino not in visitados:
+                        visitados.add(vecino)
+                        cola.append(vecino)
+            componentes.append(grupo)
+
+        aislados = [g[0] for g in componentes if len(g) == 1]
+        return {
+            "conectada": len(componentes) <= 1,
+            "componentes": componentes,
+            "aislados": aislados,
+        }
+
+    def imprimir_diagnostico(self):
+        """Ejecuta el ping general y muestra el resultado."""
+        print("\n--- Diagnóstico de Red (Ping General - BFS) ---")
         if not self.servidores:
             print("La red está vacía.")
-            return
+            print("-----------------------------------------------")
+            return None
 
-        visitados = set()
-        aislados = []
-        componentes_conexos = 0
-
-        print("\n--- Diagnóstico de Red (Ping General - BFS) ---")
-        
-        for servidor in self.servidores:
-            if servidor not in visitados:
-                componentes_conexos += 1
-                
-                # Implementación de BFS
-                cola = [servidor]
-                visitados_en_bfs = set([servidor])
-                
-                while cola:
-                    actual = cola.pop(0)
-                    visitados.add(actual)
-                    
-                    for vecino in self.servidores[actual]:
-                        if vecino not in visitados_en_bfs:
-                            visitados_en_bfs.add(vecino)
-                            cola.append(vecino)
-                
-                # Si el BFS originado en este servidor no logró alcanzar ningún otro, está aislado
-                if len(visitados_en_bfs) == 1:
-                    aislados.append(servidor)
-
-        if componentes_conexos == 1:
+        resultado = self.ping_general()
+        if resultado["conectada"]:
             print("Estado: Todos los servidores están comunicados entre sí.")
         else:
-            print(f"Estado: La red está fragmentada. No todos los servidores se pueden comunicar.")
-        
-        if aislados:
-            print(f"Servidores AISLADOS detectados: {', '.join(aislados)}")
+            print("Estado: La red está fragmentada. No todos los servidores se pueden comunicar.")
+            for i, grupo in enumerate(resultado["componentes"], start=1):
+                print(f"  Grupo {i}: {', '.join(grupo)}")
+
+        if resultado["aislados"]:
+            print(f"Servidores AISLADOS detectados: {', '.join(resultado['aislados'])}")
         else:
             print("Servidores aislados: Ninguno.")
         print("-----------------------------------------------")
-
-
-if __name__ == "__main__":
-    print("===========================================")
-    print("           PRUEBAS DEL MÓDULO              ")
-    print("===========================================")
-
-    # -----------------------------------------
-    # Prueba 1: Dijkstra
-    # -----------------------------------------
-    print("\n=== PRUEBA 1: DIJKSTRA ===")
-    print("Construyendo red:")
-    print("A ----5---- B")
-    print("|           |")
-    print("2           3")
-    print("|           |")
-    print("C ----1---- D")
-    
-    red_dijkstra = GrafoServidores()
-    red_dijkstra.agregar_conexion("A", "B", 5)
-    red_dijkstra.agregar_conexion("A", "C", 2)
-    red_dijkstra.agregar_conexion("B", "D", 3)
-    red_dijkstra.agregar_conexion("C", "D", 1)
-    
-    red_dijkstra.mostrar_red()
-    
-    # Probar ruta A -> D
-    print("\nBuscando ruta óptima de A hacia D...")
-    red_dijkstra.dijkstra("A", "D")
-
-    # -----------------------------------------
-    # Prueba 2: BFS - Detección de aislados
-    # -----------------------------------------
-    print("\n=== PRUEBA 2: PING GENERAL (AISLADOS) ===")
-    print("Construyendo red:")
-    print("A — B — C")
-    print("D (Aislado)")
-    
-    red_aislados = GrafoServidores()
-    red_aislados.agregar_conexion("A", "B", 1)
-    red_aislados.agregar_conexion("B", "C", 1)
-    red_aislados.agregar_servidor("D") # Servidor D sin conexiones
-    
-    red_aislados.mostrar_red()
-    
-    print("\nEjecutando Ping General...")
-    red_aislados.ping_general()
+        return resultado
