@@ -334,7 +334,7 @@ class ArbolDirectorios:
             estilo (str):
                 - 'arbol': Muestra con conectores jerarquicos (+--, \\--, |  ).
                 - 'simple': Muestra con sangria de espacios y prefijos [DIR]/[FILE].
-                - 'unicode': Muestra con ramas graficas Unicode (Γö£ΓöÇΓöÇ, ΓööΓöÇΓöÇ, Γöé  ).
+                - 'unicode': Muestra con ramas graficas Unicode (├──, └──, │  ).
             imprimir (bool): Si es True, hace print() en pantalla. Siempre
                 retorna la cadena formateada.
             destino (NodoArbol | str | None): Alias de nodo_inicio por compatibilidad.
@@ -387,15 +387,15 @@ class ArbolDirectorios:
                 self._construirVisualAscii(hijo, nuevo_prefijo, ultimo_del_grupo, lineas, raiz_subarbol)
 
     def _construirVisualUnicode(self, nodo, prefijo, es_ultimo, lineas, raiz_subarbol):
-        """Construye representacion jerarquica usando conectores Unicode (Γö£ΓöÇΓöÇ, ΓööΓöÇΓöÇ, Γöé  )."""
+        """Construye representacion jerarquica usando conectores Unicode (├──, └──, │  )."""
         icono = "[DIR] " if nodo.esCarpeta() else "[FILE]"
         if nodo == raiz_subarbol:
             lineas.append("%s%s" % (icono, nodo.nombre))
             nuevo_prefijo = ""
         else:
-            conector = "ΓööΓöÇΓöÇ " if es_ultimo else "Γö£ΓöÇΓöÇ "
+            conector = "└── " if es_ultimo else "├── "
             lineas.append("%s%s%s %s" % (prefijo, conector, icono, nodo.nombre))
-            nuevo_prefijo = prefijo + ("    " if es_ultimo else "Γöé   ")
+            nuevo_prefijo = prefijo + ("    " if es_ultimo else "│   ")
 
         if nodo.esCarpeta():
             total_hijos = len(nodo.hijos)
@@ -404,71 +404,160 @@ class ArbolDirectorios:
                 self._construirVisualUnicode(hijo, nuevo_prefijo, ultimo_del_grupo, lineas, raiz_subarbol)
 
     # ------------------------------------------------------------------
-    # 6) ELIMINACION EN CASCADA (Liberacion recursiva estricta)
+    # 6) OPERACIONES DE ELIMINACION Y LIBERACION DE MEMORIA
     # ------------------------------------------------------------------
-    def eliminar(self, destino, registrar_evento=None):
-        """Elimina un archivo o carpeta del arbol.
+    def _resolverObjetivo(self, nombre_o_ruta, destino=None):
+        """Resuelve un nodo dado su nombre y carpeta contenedora, o su ruta directa."""
+        if destino is not None:
+            carpeta_padre = self.resolverNodo(destino)
+            if carpeta_padre is None or carpeta_padre.esArchivo():
+                return None
+            if isinstance(nombre_o_ruta, str):
+                return carpeta_padre.buscarHijoDirecto(nombre_o_ruta)
+            return nombre_o_ruta
+        return self.resolverNodo(nombre_o_ruta)
 
-        Si se elimina una carpeta, se ejecuta una eliminacion en cascada
-        estricta en post-orden: recorre recursivamente el subarbol liberando
-        primero las hojas y desconectando punteros de abajo hacia arriba
-        para no dejar nodos huerfanos en memoria.
+    def eliminarArchivo(self, nombre_o_ruta, destino=None, registrar_evento=None):
+        """Elimina un archivo especifico del arbol y libera su memoria.
+
+        Desconecta el nodo de su directorio padre y limpia sus referencias
+        para asegurar que el recolector de basura lo libere inmediatamente,
+        evitando referencias o nodos huerfanos.
 
         Parametros:
-            destino (NodoArbol | str): Nodo o ruta a eliminar.
+            nombre_o_ruta (NodoArbol | str): Nombre o ruta del archivo a eliminar.
+            destino (NodoArbol | str | None): Carpeta contenedora (opcional).
             registrar_evento (callable | None): Callback para auditoria.
 
         Retorna:
             bool: True si se elimino con exito, False si fallo.
         """
-        nodo = self.resolverNodo(destino)
+        nodo = self._resolverObjetivo(nombre_o_ruta, destino)
         if nodo is None:
-            self.ultimo_mensaje = "Error: El elemento a eliminar no existe."
+            self.ultimo_mensaje = "Error: El archivo a eliminar no existe."
+            return False
+
+        if nodo.esCarpeta():
+            self.ultimo_mensaje = (
+                "Error: '%s' es una carpeta, no un archivo. Use eliminarCarpeta()."
+                % nodo.nombre
+            )
+            return False
+
+        padre = nodo.padre
+        ruta_eliminada = nodo.obtenerRuta()
+
+        # Desvincular del directorio padre
+        if padre is not None:
+            padre.eliminarHijo(nodo)
+
+        # Liberar memoria del nodo (desconecta padre, hijos y contenido)
+        nodo.liberar()
+
+        self.ultimo_mensaje = "Archivo '%s' eliminado correctamente." % ruta_eliminada
+
+        if registrar_evento:
+            registrar_evento("[ARBOL] Eliminacion de archivo: %s" % ruta_eliminada)
+
+        return True
+
+    def eliminarCarpeta(self, nombre_o_ruta, destino=None, en_cascada=True, registrar_evento=None):
+        """Elimina una carpeta del arbol, opcionalmente con eliminacion en cascada.
+
+        Si en_cascada=True, efectua una eliminacion recursiva en post-orden:
+        recorre desde las hojas mas profundas (archivos y subcarpetas) hacia arriba,
+        liberando la memoria progresivamente y desconectando referencias para no
+        dejar nodos huerfanos en memoria.
+
+        Parametros:
+            nombre_o_ruta (NodoArbol | str): Nombre o ruta de la carpeta.
+            destino (NodoArbol | str | None): Carpeta contenedora (opcional).
+            en_cascada (bool): Si es True, elimina recursivamente todo el subarbol.
+                Si es False y la carpeta contiene elementos, aborta la eliminacion.
+            registrar_evento (callable | None): Callback para auditoria.
+
+        Retorna:
+            bool: True si se elimino con exito, False si fallo.
+        """
+        nodo = self._resolverObjetivo(nombre_o_ruta, destino)
+        if nodo is None:
+            self.ultimo_mensaje = "Error: La carpeta a eliminar no existe."
+            return False
+
+        if nodo.esArchivo():
+            self.ultimo_mensaje = (
+                "Error: '%s' es un archivo, no una carpeta. Use eliminarArchivo()."
+                % nodo.nombre
+            )
             return False
 
         if nodo.esRaiz():
             self.ultimo_mensaje = "Error: No esta permitido eliminar el directorio raiz '/'."
             return False
 
+        if not en_cascada and len(nodo.hijos) > 0:
+            self.ultimo_mensaje = (
+                "Error: La carpeta '%s' no esta vacia (%d elemento(s)). "
+                "Active la eliminacion en cascada para borrarla."
+                % (nodo.obtenerRuta(), len(nodo.hijos))
+            )
+            return False
+
         padre = nodo.padre
         ruta_eliminada = nodo.obtenerRuta()
 
-        # Si el directorio actual esta dentro del subarbol a eliminar,
-        # retroceder el directorio actual al padre seguro.
+        # Si el directorio de trabajo actual (self.actual) esta dentro del subarbol
+        # que se eliminara, reubicarlo al padre seguro para evitar punteros huerfanos.
         if self._esDescendiente(self.actual, nodo):
             self.actual = padre
 
-        # Proceder a la eliminacion en cascada recursiva
-        total_eliminados = self._eliminarEnCascadaRecursivo(nodo)
-
-        # Desvincular del padre
+        # Desvincular de su directorio padre para aislar el subarbol del arbol principal
         if padre is not None:
             padre.eliminarHijo(nodo)
 
+        # Proceder a la eliminacion recursiva en cascada (post-orden: hojas -> raiz)
+        total_eliminados = self._eliminarEnCascadaRecursivo(nodo)
+
         self.ultimo_mensaje = (
-            "Elemento '%s' y sus dependencias (%d nodo(s)) eliminados correctamente."
+            "Carpeta '%s' y sus dependencias (%d nodo(s)) eliminados correctamente."
             % (ruta_eliminada, total_eliminados)
         )
 
         if registrar_evento:
-            registrar_evento("[ARBOL] Eliminacion en cascada: %s (%d nodos liberados)"
-                             % (ruta_eliminada, total_eliminados))
+            registrar_evento(
+                "[ARBOL] Eliminacion de carpeta en cascada: %s (%d nodos liberados)"
+                % (ruta_eliminada, total_eliminados)
+            )
 
         return True
 
+    def eliminar(self, destino, registrar_evento=None):
+        """Metodo de conveniencia polimorfico para eliminar cualquier elemento
+        (archivo o carpeta con eliminacion en cascada activada).
+        """
+        nodo = self.resolverNodo(destino)
+        if nodo is None:
+            self.ultimo_mensaje = "Error: El elemento a eliminar no existe."
+            return False
+
+        if nodo.esArchivo():
+            return self.eliminarArchivo(nodo, registrar_evento=registrar_evento)
+        return self.eliminarCarpeta(nodo, en_cascada=True, registrar_evento=registrar_evento)
+
     def _eliminarEnCascadaRecursivo(self, nodo):
-        """Recorrido recursivo en post-orden: limpia de hojas a raiz."""
+        """Recorrido recursivo en post-orden: limpia de hojas a raiz liberando memoria."""
         conteo = 0
         if nodo.esCarpeta():
             # Copiamos la lista de hijos para iterar con seguridad
             hijos_a_borrar = list(nodo.hijos)
             for hijo in hijos_a_borrar:
+                # 1. Bajar recursivamente a las hojas mas profundas
                 conteo += self._eliminarEnCascadaRecursivo(hijo)
+                # 2. Desvincular el hijo del nodo contenedor
                 nodo.eliminarHijo(hijo)
 
-        # Limpiar atributos del nodo para romper referencias circulares
-        nodo.hijos.clear()
-        nodo.padre = None
+        # 3. Liberar el nodo actual desconectando sus punteros (padre, hijos, contenido)
+        nodo.liberar()
         conteo += 1
         return conteo
 
@@ -599,12 +688,34 @@ def _demo():
     fs.cambiarDirectorio("..")
     print("   cd .. -> Actual: %s" % fs.obtenerRutaActual())
 
-    # 8. Eliminacion en cascada recursiva
-    print("\n8) ELIMINACION EN CASCADA RECURSIVA (Subarbol /home/usuario/descargas)")
-    fs.eliminar("/home/usuario/descargas", registrar_evento=auditoria)
-    print("   %s" % fs.ultimo_mensaje)
+    # 8. Operaciones de eliminacion y liberacion de memoria
+    print("\n8) OPERACIONES DE ELIMINACION Y LIBERACION DE MEMORIA")
+    
+    # 8.1 Eliminacion de un archivo especifico
+    print("   8.1) Eliminacion de archivo individual:")
+    fs.eliminarArchivo("notas.txt", destino="/home/usuario/documentos", registrar_evento=auditoria)
+    print("        %s" % fs.ultimo_mensaje)
 
-    print("\n   Arbol tras eliminar /home/usuario/descargas:")
+    # 8.2 Validacion: evitar eliminar carpeta con eliminarArchivo
+    fs.eliminarArchivo("/home/usuario/descargas")
+    print("        Validacion tipo -> %s" % fs.ultimo_mensaje)
+
+    # 8.3 Validacion: carpeta no vacia sin cascada
+    print("\n   8.2) Eliminacion de carpeta sin cascada (carpeta no vacia):")
+    fs.eliminarCarpeta("/home/usuario/descargas", en_cascada=False)
+    print("        %s" % fs.ultimo_mensaje)
+
+    # 8.4 Eliminacion en cascada recursiva desde las hojas hacia la raiz
+    print("\n   8.3) Eliminacion de carpeta en cascada recursiva:")
+    fs.eliminarCarpeta("/home/usuario/descargas", en_cascada=True, registrar_evento=auditoria)
+    print("        %s" % fs.ultimo_mensaje)
+
+    # 8.5 Proteccion de la raiz
+    print("\n   8.4) Proteccion de la raiz '/':")
+    fs.eliminarCarpeta("/")
+    print("        %s" % fs.ultimo_mensaje)
+
+    print("\n   Arbol restante en /home:")
     fs.mostrarArbol(nodo_inicio="/home", estilo="arbol")
 
     # 9. Eventos de auditoria registrados
@@ -619,4 +730,3 @@ def _demo():
 
 if __name__ == "__main__":
     _demo()
-
