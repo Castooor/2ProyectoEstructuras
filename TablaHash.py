@@ -34,6 +34,12 @@ from NodoUsuario import NodoUsuario
 # Tamano de la tabla hash: 50 posiciones o "buckets".
 TAMANO_TABLA = 50
 
+# Roles permitidos en el sistema. Las acciones sensibles (por ejemplo crear o
+# eliminar carpetas en el arbol de directorios) solo las puede ejecutar un
+# usuario con rol de administrador; ver 'esAdministrador' y 'verificarPermiso'.
+ROL_USUARIO = "usuario"
+ROL_ADMINISTRADOR = "administrador"
+ROLES_VALIDOS = (ROL_USUARIO, ROL_ADMINISTRADOR)
 
 class TablaHash:
     """Tabla hash de usuarios (tamano 50) con encadenamiento por listas simples.
@@ -149,6 +155,10 @@ class TablaHash:
         if contrasena is None or str(contrasena) == "":
             raise ValueError("La contrasena no puede estar vacia.")
 
+        rol = str(rol).strip().lower()
+        if rol not in ROLES_VALIDOS:
+            raise ValueError("El rol '%s' no es valido. Debe ser: %s" % (rol, ", ".join(ROLES_VALIDOS)))
+
         nodo, _, indice = self._buscarNodo(nombre)
         if nodo is not None:
             self.ultimo_mensaje = "El usuario '%s' ya existe (indice %d)." % (nombre, indice)
@@ -230,6 +240,31 @@ class TablaHash:
     def haySesionActiva(self):
         """True si existe una sesion abierta."""
         return self._usuario_activo is not None
+
+    # ------------------------------------------------------------------
+    # 3.1) PERMISOS POR ROL (los consume el modulo de directorios y el menu de integracion)
+    # ------------------------------------------------------------------
+
+    def esAdministrador(self):
+        """True si el usuario activo tiene rol de administrador."""
+        return self._usuario_activo is not None and self._usuario_activo.rol == ROL_ADMINISTRADOR
+
+    def verificarPermiso(self, accion, registrar_evento=None):
+        """Verifica si el usuario activo puede ejecutar la accion solicitada.
+
+        Las acciones sensibles (crear/eliminar carpetas, cambiar permisos,
+        etc) solo las puede ejecutar un administrador; el resto de acciones
+        son validas para cualquier usuario.
+        """
+        if self.esAdministrador():
+            return True
+        if self._usuario_activo is None:
+            self.ultimo_mensaje = "No hay sesion activa; no se puede ejecutar '%s'." % accion
+            return False
+        else: 
+            self.ultimo_mensaje = "El usuario '%s' no tiene permiso para ejecutar '%s'." % (self._usuario_activo.nombre, accion)
+            self._notificar(registrar_evento, "Acceso denegado a: %s" % accion, self._usuario_activo.nombre)
+            return False
 
     # ------------------------------------------------------------------
     # 4) ELIMINACION (reconecta los enlaces de la lista simple)
@@ -328,127 +363,30 @@ class TablaHash:
         datos = self.estadisticas()
         print("-" * 64)
         print("  Usuarios: %d | indices ocupados: %d de %d | colisiones: %d" %
-              (datos["usuarios"], datos["indices_ocupados"], datos["tamano"], datos["colisiones"]))
+        (datos["usuarios"], datos["indices_ocupados"], datos["tamano"], datos["colisiones"]))
         print("  Factor de carga: %.4f | cadena mas larga: %d | intentos fallidos: %d" %
-              (datos["factor_carga"], datos["cadena_mas_larga"], datos["intentos_fallidos"]))
+            (datos["factor_carga"], datos["cadena_mas_larga"], datos["intentos_fallidos"]))
         print("-" * 64)
 
     def __len__(self):
         """Cantidad de usuarios registrados."""
         return self.total_usuarios
-
     def __contains__(self, nombre):
         """Permite escribir: 'kenan' in tabla"""
         return self.buscarUsuario(nombre) is not None
 
+    def _nombresQueColisionan(self, tabla, nombre_base, cantidad=3, limite=20000):
+        """Busca nombres que producen el mismo indice que 'nombre_base'.
 
-# ----------------------------------------------------------------------
-# PRUEBAS MANUALES: se ejecutan solo con "python TablaHash.py"
-# ----------------------------------------------------------------------
-def _nombresQueColisionan(tabla, nombre_base, cantidad=3, limite=20000):
-    """Busca nombres que producen el mismo indice que 'nombre_base'.
-
-    Devuelve (indice, [nombres]). Se generan candidatos con un contador y se
-    conserva la funcion hash intacta: son colisiones reales, no simuladas.
-    """
-    indice = tabla.funcionHash(nombre_base)
-    encontrados = []
-    contador = 1
-    while len(encontrados) < cantidad and contador <= limite:
-        candidato = "%s%d" % (nombre_base, contador)
-        if tabla.funcionHash(candidato) == indice:
-            encontrados.append(candidato)
-        contador += 1
-    return indice, encontrados
-
-
-def _demo():
-    print("=" * 64)
-    print(" PRUEBAS DEL MODULO HASH / AUTENTICACION")
-    print("=" * 64)
-
-    eventos = []
-
-    def auditoria(mensaje):
-        eventos.append(mensaje)
-
-    auth = TablaHash()
-    print("Tamano de la tabla: %d indices (0 .. %d)\n" % (auth.tamano, auth.tamano - 1))
-
-    print("1) FUNCION HASH: nombre -> codigo -> indice")
-    for nombre in ("santiago", "brayan", "kenan", "allison"):
-        print("   %-9s codigoHash=%-24d funcionHash=%2d" %
-              (nombre, auth.codigoHash(nombre), auth.funcionHash(nombre)))
-
-    print("\n2) REGISTRO DE USUARIOS")
-    registros = [
-        ("santiago", "Santi2026", "administrador"),
-        ("Brayan", "Brayan123", "usuario"),
-        ("kenan", "Kenan123", "administrador"),
-        ("allison", "Allison123", "usuario"),
-    ]
-    for nombre, contrasena, rol in registros:
-        ok = auth.registrarUsuario(nombre, contrasena, rol, registrar_evento=auditoria)
-        print("   [%-5s] %s" % ("OK" if ok else "ERROR", auth.ultimo_mensaje))
-    print("   Repetido -> registrarUsuario('KENAN', 'OtraClave') = %s" %
-          auth.registrarUsuario("KENAN", "OtraClave"))
-    print("   Total de usuarios registrados: %d" % len(auth))
-
-    print("\n3) INICIAR SESION Y VALIDAR CREDENCIALES")
-    casos = [
-        ("kenan", "Kenan123", True),
-        ("kenan", "claveMala", False),
-        ("  SANTIAGO  ", "Santi2026", True),
-        ("usuarioFantasma", "1234", False),
-        ("allison", "", False),
-    ]
-    for nombre, contrasena, esperado in casos:
-        resultado = auth.iniciarSesion(nombre, contrasena, registrar_evento=auditoria)
-        marca = "OK" if resultado == esperado else "REVISAR"
-        print("   [%-7s] iniciarSesion('-%s-', '-%s-') = %-5s | %s" %
-              (marca, nombre, contrasena, resultado, auth.ultimo_mensaje))
-        auth.cerrarSesion()
-
-    print("\n4) USUARIO AUTENTICADO (lo que consume el menu)")
-    auth.iniciarSesion("kenan", "Kenan123", registrar_evento=auditoria)
-    if auth.haySesionActiva():
-        print("   Sesion activa: %s (rol %s)" %
-              (auth.usuarioActivo.nombre, auth.usuarioActivo.rol))
-    print("   cerrarSesion() = %s | hay sesion activa? %s" %
-          (auth.cerrarSesion(registrar_evento=auditoria), auth.haySesionActiva()))
-
-    print("\n5) COLISIONES Y SU RESOLUCION POR ENCADENAMIENTO")
-    indice, colisionados = _nombresQueColisionan(auth, "santiago", 3)
-    print("   'santiago' vive en el indice %d; estos nombres llegan al mismo indice:" % indice)
-    for nombre in colisionados:
-        auth.registrarUsuario(nombre, "clave123", registrar_evento=auditoria)
-        print("      %-12s -> indice %d" % (nombre, auth.funcionHash(nombre)))
-    print("   Cadena del indice %d: %s" % (indice, " -> ".join(auth.obtenerCadena(indice))))
-    if colisionados:
-        print("   Login de un usuario que colisiono: %s | %s" %
-              (auth.iniciarSesion(colisionados[0], "clave123"), auth.ultimo_mensaje))
-        auth.cerrarSesion()
-
-    print("\n6) ELIMINAR USUARIO (reconexion de enlaces)")
-    for nombre in ("brayan", "brayan", "santiago"):
-        resultado = auth.eliminarUsuario(nombre, registrar_evento=auditoria)
-        print("   eliminarUsuario('%-9s') = %-5s | %s" % (nombre, resultado, auth.ultimo_mensaje))
-    print("   Cadena del indice %d tras eliminar: %s" %
-          (indice, " -> ".join(auth.obtenerCadena(indice))))
-    print("   buscarUsuario('santiago') (eliminado) = %s" % auth.buscarUsuario("santiago"))
-    print("   Login de usuario eliminado: %s | %s" %
-          (auth.iniciarSesion("brayan", "Brayan123"), auth.ultimo_mensaje))
-
-    print("\n7) ESTADO FINAL DE LA TABLA")
-    auth.mostrarTabla()
-
-    print("\n8) EVENTOS ENVIADOS AL CALLBACK DE AUDITORIA")
-    for mensaje in eventos:
-        print("   - %s" % mensaje)
-
-    print("\nFin de las pruebas. El menu puede importar: from TablaHash import TablaHash")
-
-
-if __name__ == "__main__":
-    _demo()
-
+        Devuelve (indice, [nombres]). Se generan candidatos con un contador y se
+        conserva la funcion hash intacta: son colisiones reales, no simuladas.
+        """
+        indice = tabla.funcionHash(nombre_base)
+        encontrados = []
+        contador = 1
+        while len(encontrados) < cantidad and contador <= limite:
+            candidato = "%s%d" % (nombre_base, contador)
+            if tabla.funcionHash(candidato) == indice:
+                encontrados.append(candidato)
+            contador += 1
+        return indice, encontrados
