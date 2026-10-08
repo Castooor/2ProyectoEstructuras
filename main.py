@@ -1,6 +1,8 @@
 from ArbolDirectorios import ArbolDirectorios
 from auditoria import Auditoria
 from TablaHash import TablaHash
+from GrafoServidores import GrafoServidores
+from MenuGrafos import menu_grafos
 
 
 # ============================================================
@@ -36,6 +38,7 @@ def mostrar_menu(tabla_hash):
     print("14. Demostrar colisiones")
     print("----------------------------------------")
     print("15. Ver auditoría")
+    print("16. Red y enrutamiento")
     print("0. Salir")
     print("========================================")
 
@@ -374,6 +377,7 @@ def main():
     auditoria = Auditoria()
     arbol = ArbolDirectorios()
     tabla_hash = TablaHash()
+    red = GrafoServidores()
 
     print("========================================")
     print(" SISTEMA DE ARCHIVOS DISTRIBUIDO")
@@ -382,6 +386,7 @@ def main():
     print("Árbol de directorios: OK")
     print("Tabla hash: OK")
     print("Auditoría: OK")
+    print("Red y enrutamiento: OK")
 
     while True:
         mostrar_menu(tabla_hash)
@@ -458,6 +463,14 @@ def main():
 
         elif opcion == "15":
             mostrar_auditoria(auditoria)
+
+        # ---------------- GRAFOS ----------------
+
+        elif opcion == "16":
+            menu_grafos(
+                red,
+                registrar=auditoria.registrar
+            )
 
         # ---------------- SALIR ----------------
 
