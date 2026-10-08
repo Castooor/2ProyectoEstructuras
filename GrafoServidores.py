@@ -41,7 +41,7 @@ class GrafoServidores:
         print("--- Red de Servidores ---")
         if not self.servidores:
             print("La red está vacía.")
-            return
+            return None
         for servidor, conexiones in self.servidores.items():
             if not conexiones:
                 print(f"Servidor {servidor}: Sin conexiones (Aislado)")
@@ -49,22 +49,32 @@ class GrafoServidores:
                 conns = [f"{dest}({lat}ms)" for dest, lat in conexiones.items()]
                 print(f"Servidor {servidor} conectado a: {', '.join(conns)}")
         print("-------------------------")
+        return None
 
     # ------------------------------------------------------------------
     # Dijkstra (desde cero, O(V^2))
     # ------------------------------------------------------------------
-    def dijkstra(self, origen, destino):
+    def dijkstra(self, origen, destino, mostrar=True):
         """
         Ruta de menor latencia entre origen y destino.
-        Devuelve (ruta, costo_total) o None si no existe ruta / servidores.
-        No imprime: usar imprimir_ruta() para mostrar el resultado.
+        Imprime el resultado en consola (si mostrar=True) y devuelve
+        (ruta, costo_total), o None si no hay ruta o algún servidor no existe.
         """
         if origen not in self.servidores or destino not in self.servidores:
+            if mostrar:
+                print("El origen o destino no existen en la red.")
             return None
 
         if origen == destino:
-            return [origen], 0
+            resultado = ([origen], 0)
+        else:
+            resultado = self._calcular_ruta(origen, destino)
 
+        if mostrar:
+            self._imprimir_ruta(origen, destino, resultado)
+        return resultado
+
+    def _calcular_ruta(self, origen, destino):
         distancias = {nodo: float("inf") for nodo in self.servidores}
         predecesores = {nodo: None for nodo in self.servidores}
         distancias[origen] = 0
@@ -103,16 +113,12 @@ class GrafoServidores:
             ruta.append(paso)
             paso = predecesores[paso]
         ruta.reverse()
-
         return ruta, distancias[destino]
 
-    def imprimir_ruta(self, origen, destino):
-        """Ejecuta Dijkstra y muestra el resultado. Devuelve lo mismo que dijkstra()."""
-        resultado = self.dijkstra(origen, destino)
+    def _imprimir_ruta(self, origen, destino, resultado):
         print("\n--- Simulación de Envío (Dijkstra) ---")
         if resultado is None:
-            print(f"No hay ruta posible desde {origen} hasta {destino} "
-                  f"(o alguno no existe en la red).")
+            print(f"No hay ruta posible desde {origen} hasta {destino}")
         else:
             ruta, costo = resultado
             intermedios = ruta[1:-1]
@@ -124,22 +130,22 @@ class GrafoServidores:
                 print("Saltos intermedios: "
                       f"{' -> '.join(intermedios) if intermedios else 'Ninguno (Conexión directa)'}")
             print(f"Ruta completa: {' -> '.join(ruta)}")
+            if len(ruta) > 1:
+                print("Detalle de saltos:")
+                for i in range(len(ruta) - 1):
+                    a, b = ruta[i], ruta[i + 1]
+                    print(f"  Salto {i + 1}: {a} -> {b} ({self.servidores[a][b]} ms)")
             print(f"Costo total (Latencia): {costo} ms")
         print("--------------------------------------")
-        return resultado
 
     # ------------------------------------------------------------------
     # Ping general (BFS)
     # ------------------------------------------------------------------
-    def ping_general(self):
+    def ping_general(self, mostrar=True):
         """
-        Diagnóstico con BFS. Devuelve un diccionario:
-          {
-            "conectada": bool,        # True si todos se comunican entre sí
-            "componentes": [[...]],   # grupos de servidores conectados
-            "aislados": [...]         # servidores sin ninguna conexión
-          }
-        No imprime: usar imprimir_diagnostico() para mostrarlo.
+        Diagnóstico de la red con BFS. Imprime en consola (si mostrar=True)
+        y devuelve un diccionario:
+          {"conectada": bool, "componentes": [[...]], "aislados": [...]}
         """
         visitados = set()
         componentes = []
@@ -159,32 +165,29 @@ class GrafoServidores:
                         cola.append(vecino)
             componentes.append(grupo)
 
-        aislados = [g[0] for g in componentes if len(g) == 1]
-        return {
+        resultado = {
             "conectada": len(componentes) <= 1,
             "componentes": componentes,
-            "aislados": aislados,
+            "aislados": [g[0] for g in componentes if len(g) == 1],
         }
 
-    def imprimir_diagnostico(self):
-        """Ejecuta el ping general y muestra el resultado."""
+        if mostrar:
+            self._imprimir_diagnostico(resultado)
+        return resultado
+
+    def _imprimir_diagnostico(self, resultado):
         print("\n--- Diagnóstico de Red (Ping General - BFS) ---")
         if not self.servidores:
             print("La red está vacía.")
-            print("-----------------------------------------------")
-            return None
-
-        resultado = self.ping_general()
-        if resultado["conectada"]:
-            print("Estado: Todos los servidores están comunicados entre sí.")
         else:
-            print("Estado: La red está fragmentada. No todos los servidores se pueden comunicar.")
-            for i, grupo in enumerate(resultado["componentes"], start=1):
-                print(f"  Grupo {i}: {', '.join(grupo)}")
-
-        if resultado["aislados"]:
-            print(f"Servidores AISLADOS detectados: {', '.join(resultado['aislados'])}")
-        else:
-            print("Servidores aislados: Ninguno.")
+            if resultado["conectada"]:
+                print("Estado: Todos los servidores están comunicados entre sí.")
+            else:
+                print("Estado: La red está fragmentada. No todos los servidores se pueden comunicar.")
+                for i, grupo in enumerate(resultado["componentes"], start=1):
+                    print(f"  Grupo {i}: {', '.join(grupo)}")
+            if resultado["aislados"]:
+                print(f"Servidores AISLADOS detectados: {', '.join(resultado['aislados'])}")
+            else:
+                print("Servidores aislados: Ninguno.")
         print("-----------------------------------------------")
-        return resultado
