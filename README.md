@@ -25,6 +25,9 @@ La estructura parte de la raíz `/`. Las carpetas pueden contener otros director
 - Consultar el usuario activo.
 - Mostrar la tabla hash y sus estadísticas.
 - Demostrar colisiones.
+- Roles `usuario` y `administrador` (cualquier otro rol se rechaza al registrar).
+- Permisos por rol: `esAdministrador()` y `verificarPermiso()`. Los intentos denegados se registran en la auditoría.
+- Eliminar usuarios.
 
 La implementación utiliza encadenamiento para almacenar usuarios que producen el mismo índice.
 
@@ -42,35 +45,33 @@ El grafo es ponderado y no dirigido: los vértices representan servidores, las a
 ### Auditoría
 Las operaciones relevantes se registran con fecha y hora en `network_audit_log.txt`. La opción de auditoría del menú principal permite consultar los registros. El archivo se genera durante la ejecución y está excluido del control de versiones mediante `.gitignore`.
 
-## Menú principal
+## Acceso y menús por rol
 
-| Opción | Función |
-|---:|---|
-| 1 | Crear carpeta |
-| 2 | Crear archivo |
-| 3 | Buscar archivo |
-| 4 | Mostrar árbol |
-| 5 | Eliminar archivo |
-| 6 | Eliminar carpeta |
-| 7 | Cambiar directorio |
-| 8 | Mostrar ruta actual |
-| 9 | Registrar usuario |
-| 10 | Iniciar sesión |
-| 11 | Cerrar sesión |
-| 12 | Mostrar usuario activo |
-| 13 | Mostrar tabla hash |
-| 14 | Demostrar colisiones |
-| 15 | Ver auditoría |
-| 16 | Red y enrutamiento |
-| 0 | Salir |
+Al iniciar el programa solo aparece la pantalla de acceso, con **1. Iniciar sesión** y **2. Salir**. No se puede usar nada sin una sesión activa. Según el rol de la cuenta se abre un menú distinto; la opción **0** de ese menú cierra la sesión y vuelve a la pantalla de acceso.
 
-El submenú de red permite agregar servidores y conexiones, eliminar conexiones, consultar conexiones, mostrar la red, calcular rutas y comprobar conectividad.
+**Cuenta inicial:** al arrancar se crea el administrador `admin` con la contraseña `admin123` (constantes `ADMIN_INICIAL_USUARIO` y `ADMIN_INICIAL_CONTRASENA` en `main.py`). Los usuarios se guardan solo en memoria: al cerrar el programa se pierden y se vuelve a crear solo esta cuenta. Solo un administrador puede registrar o eliminar usuarios.
+
+| Acción | Administrador | Usuario |
+|---|:---:|:---:|
+| Buscar archivo | sí | sí |
+| Mostrar árbol | sí | sí |
+| Cambiar directorio y mostrar ruta actual | sí | sí |
+| Mostrar usuario activo | sí | sí |
+| Red y enrutamiento: consultar conexiones, mostrar la red, Dijkstra y ping (BFS) | sí | sí |
+| Crear carpeta / crear archivo | sí | no |
+| Eliminar archivo / eliminar carpeta | sí | no |
+| Registrar usuario / eliminar usuario | sí | no |
+| Mostrar tabla hash y demostrar colisiones | sí | no |
+| Ver auditoría | sí | no |
+| Red y enrutamiento: agregar servidores, crear y eliminar conexiones | sí | no |
+
+Las opciones que un rol no puede usar no aparecen en su menú. Además, antes de ejecutar una acción restringida se vuelve a comprobar el permiso y se registra el intento si es denegado. Un administrador no puede eliminar la cuenta con la que tiene la sesión abierta, para que siempre quede al menos uno.
 
 ## Tecnologías y herramientas
 - Python
 - PyCharm
 - Git y GitHub
-- `unittest` para las pruebas automatizadas del árbol
+- `unittest` para las pruebas automatizadas del árbol y de los permisos
 
 ## Estructura del proyecto
 
@@ -85,6 +86,7 @@ Módulos principales:
 - `MenuGrafos.py`: submenú de red.
 - `auditoria.py`: registro y consulta de auditoría.
 - `test_arbol.py`: pruebas automatizadas del árbol.
+- `test_permisos.py`: pruebas de roles, permisos, menús y flujo de inicio de sesión.
 - `PruebaGrafosServidores.py`: pruebas del grafo.
 - `.gitignore`: archivos excluidos de Git.
 
@@ -145,6 +147,9 @@ test_arbol.py:
 
 PruebaGrafosServidores.py:
 8 pruebas pasaron (OK).
+
+test_permisos.py:
+19 pruebas pasaron (OK).
 ```
 
 Estos resultados corresponden a las pruebas ejecutadas durante el desarrollo; no implican que se hayan probado todas las combinaciones posibles o todos los casos límite.
@@ -153,6 +158,7 @@ Para volver a ejecutar las pruebas desde la raíz del proyecto:
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest test_arbol.py
+.\.venv\Scripts\python.exe -m unittest test_permisos.py
 .\.venv\Scripts\python.exe PruebaGrafosServidores.py
 ```
 

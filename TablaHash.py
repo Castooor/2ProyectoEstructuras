@@ -34,6 +34,13 @@ from NodoUsuario import NodoUsuario
 # Tamano de la tabla hash: 50 posiciones o "buckets".
 TAMANO_TABLA = 50
 
+# Roles permitidos en el sistema. Las acciones sensibles (por ejemplo crear o
+# eliminar carpetas en el arbol de directorios) solo las puede ejecutar un
+# usuario con rol de administrador; ver 'esAdministrador' y 'verificarPermiso'.
+ROL_USUARIO = "usuario"
+ROL_ADMINISTRADOR = "administrador"
+ROLES_VALIDOS = (ROL_USUARIO, ROL_ADMINISTRADOR)
+
 
 class TablaHash:
     """Tabla hash de usuarios (tamano 50) con encadenamiento por listas simples.
@@ -141,13 +148,17 @@ class TablaHash:
             True  -> el usuario se registro correctamente.
             False -> el nombre ya estaba registrado.
 
-        Lanza ValueError si el nombre o la contrasena estan vacios.
+        Lanza ValueError si el nombre o la contrasena estan vacios, o si el
+        rol no es 'usuario' ni 'administrador'.
         """
         clave = self._clave(nombre)
         if clave == "":
             raise ValueError("El nombre de usuario no puede estar vacio.")
         if contrasena is None or str(contrasena) == "":
             raise ValueError("La contrasena no puede estar vacia.")
+        rol = str(rol).strip().lower()
+        if rol not in ROLES_VALIDOS:
+            raise ValueError("Rol invalido '%s'. Use: %s." % (rol, " o ".join(ROLES_VALIDOS)))
 
         nodo, _, indice = self._buscarNodo(nombre)
         if nodo is not None:
@@ -230,6 +241,37 @@ class TablaHash:
     def haySesionActiva(self):
         """True si existe una sesion abierta."""
         return self._usuario_activo is not None
+
+    # ------------------------------------------------------------------
+    # 3b) PERMISOS POR ROL (los consume el modulo de directorios)
+    # ------------------------------------------------------------------
+    def esAdministrador(self):
+        """True solo si hay una sesion abierta y su rol es 'administrador'."""
+        return (self._usuario_activo is not None
+                and self._usuario_activo.rol == ROL_ADMINISTRADOR)
+
+    def verificarPermiso(self, accion, registrar_evento=None):
+        """Autoriza una accion restringida a administradores.
+
+        Uso desde otro modulo, antes de crear o eliminar carpetas/archivos:
+
+            if not auth.verificarPermiso("eliminar carpeta /docs", registrar_evento=log):
+                return          # acceso denegado; 'ultimo_mensaje' dice por que
+
+        Devuelve True si el usuario activo es administrador. Si no hay sesion
+        o el rol es 'usuario', devuelve False, deja el motivo en
+        'ultimo_mensaje' y avisa al callback de auditoria del intento denegado.
+        """
+        if self.esAdministrador():
+            return True
+        if self._usuario_activo is None:
+            quien = "sin sesion activa"
+        else:
+            quien = "%s (rol %s)" % (self._usuario_activo.nombre, self._usuario_activo.rol)
+        self.ultimo_mensaje = "Acceso denegado: '%s' requiere rol administrador." % accion
+        self._notificar(registrar_evento,
+                        "Acceso denegado a '%s': %s" % (accion, quien))
+        return False
 
     # ------------------------------------------------------------------
     # 4) ELIMINACION (reconecta los enlaces de la lista simple)
@@ -416,6 +458,21 @@ def _demo():
               (auth.usuarioActivo.nombre, auth.usuarioActivo.rol))
     print("   cerrarSesion() = %s | hay sesion activa? %s" %
           (auth.cerrarSesion(registrar_evento=auditoria), auth.haySesionActiva()))
+
+    print("\n4b) PERMISOS POR ROL (solo el administrador puede acciones restringidas)")
+    print("   Sin sesion  -> verificarPermiso = %s | %s" %
+          (auth.verificarPermiso("eliminar carpeta", registrar_evento=auditoria), auth.ultimo_mensaje))
+    auth.iniciarSesion("allison", "Allison123", registrar_evento=auditoria)
+    print("   allison (usuario)       -> %s | %s" %
+          (auth.verificarPermiso("eliminar carpeta", registrar_evento=auditoria), auth.ultimo_mensaje))
+    auth.iniciarSesion("kenan", "Kenan123", registrar_evento=auditoria)
+    print("   kenan (administrador)   -> %s" %
+          auth.verificarPermiso("eliminar carpeta", registrar_evento=auditoria))
+    auth.cerrarSesion()
+    try:
+        auth.registrarUsuario("intruso", "x123", "superroot")
+    except ValueError as error:
+        print("   Rol invalido rechazado: %s" % error)
 
     print("\n5) COLISIONES Y SU RESOLUCION POR ENCADENAMIENTO")
     indice, colisionados = _nombresQueColisionan(auth, "santiago", 3)

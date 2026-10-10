@@ -1,0 +1,2 @@
+[2026-10-10 13:15:36] Sistema: administrador inicial 'admin' creado
+[2026-10-10 13:15:43] Inicio de sesion exitoso: admin

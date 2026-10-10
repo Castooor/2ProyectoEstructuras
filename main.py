@@ -3,43 +3,50 @@ from auditoria import Auditoria
 from TablaHash import TablaHash
 from GrafoServidores import GrafoServidores
 from MenuGrafos import menu_grafos
+from collections import namedtuple
+
+
+# Cuenta que se crea al arrancar para poder iniciar sesión por primera vez.
+# Los usuarios viven solo en memoria: al cerrar el programa se pierden y esta
+# cuenta se vuelve a crear en la siguiente ejecución.
+ADMIN_INICIAL_USUARIO = "admin"
+ADMIN_INICIAL_CONTRASENA = "admin123"
+
+# Una acción del menú. 'solo_admin' indica si el rol "usuario" la tiene vedada.
+Accion = namedtuple("Accion", ["grupo", "descripcion", "ejecutar", "solo_admin"])
 
 
 # ============================================================
 # MENÚ PRINCIPAL
 # ============================================================
 
-def mostrar_menu(tabla_hash):
+def mostrar_menu_inicio():
     print("\n========================================")
     print(" SISTEMA DE ARCHIVOS DISTRIBUIDO")
     print("========================================")
+    print("1. Iniciar sesión")
+    print("2. Salir")
+    print("========================================")
 
-    if tabla_hash.haySesionActiva():
-        usuario = tabla_hash.usuarioActivo
-        print(f" Usuario: {usuario.nombre} | Rol: {usuario.rol}")
-    else:
-        print(" Usuario: No hay sesión activa")
+
+def mostrar_menu_rol(tabla_hash, disponibles):
+    """Dibuja el menú de la sesión activa con las acciones de su rol."""
+    usuario = tabla_hash.usuarioActivo
+
+    print("\n========================================")
+    print(" SISTEMA DE ARCHIVOS DISTRIBUIDO")
+    print("========================================")
+    print(f" Usuario: {usuario.nombre} | Rol: {usuario.rol}")
+
+    grupo_actual = None
+    for numero, accion in enumerate(disponibles, start=1):
+        if accion.grupo != grupo_actual:
+            grupo_actual = accion.grupo
+            print(f"---------- {grupo_actual} ----------")
+        print(f"{numero}. {accion.descripcion}")
 
     print("----------------------------------------")
-    print("1. Crear carpeta")
-    print("2. Crear archivo")
-    print("3. Buscar archivo")
-    print("4. Mostrar árbol")
-    print("5. Eliminar archivo")
-    print("6. Eliminar carpeta")
-    print("7. Cambiar directorio")
-    print("8. Mostrar ruta actual")
-    print("----------------------------------------")
-    print("9. Registrar usuario")
-    print("10. Iniciar sesión")
-    print("11. Cerrar sesión")
-    print("12. Mostrar usuario activo")
-    print("13. Mostrar tabla hash")
-    print("14. Demostrar colisiones")
-    print("----------------------------------------")
-    print("15. Ver auditoría")
-    print("16. Red y enrutamiento")
-    print("0. Salir")
+    print("0. Cerrar sesión")
     print("========================================")
 
 
@@ -47,7 +54,26 @@ def mostrar_menu(tabla_hash):
 # ÁRBOL DE DIRECTORIOS
 # ============================================================
 
-def crear_carpeta(arbol, auditoria):
+def exigir_administrador(tabla_hash, auditoria, accion):
+    """Devuelve True si la sesión activa es administrador.
+
+    Si no lo es, muestra el motivo y registra el intento denegado en la
+    auditoría. Se llama ANTES de pedir datos, para no hacer escribir al
+    usuario algo que luego se va a rechazar.
+    """
+    if tabla_hash.verificarPermiso(accion, registrar_evento=auditoria.registrar):
+        return True
+
+    print(f"\n[ACCESO DENEGADO] {tabla_hash.ultimo_mensaje}")
+    if not tabla_hash.haySesionActiva():
+        print("Inicie sesión con un administrador (opción 10).")
+    return False
+
+
+def crear_carpeta(arbol, auditoria, tabla_hash):
+    if not exigir_administrador(tabla_hash, auditoria, "crear carpeta"):
+        return
+
     nombre = input("Nombre de la carpeta: ").strip()
 
     destino = input(
@@ -73,7 +99,10 @@ def crear_carpeta(arbol, auditoria):
         print(f"\n[ERROR] {error}")
 
 
-def crear_archivo(arbol, auditoria):
+def crear_archivo(arbol, auditoria, tabla_hash):
+    if not exigir_administrador(tabla_hash, auditoria, "crear archivo"):
+        return
+
     nombre = input("Nombre del archivo: ").strip()
 
     destino = input(
@@ -127,7 +156,10 @@ def mostrar_arbol(arbol):
     print("===========================================")
 
 
-def eliminar_elemento(arbol, auditoria, tipo):
+def eliminar_elemento(arbol, auditoria, tabla_hash, tipo):
+    if not exigir_administrador(tabla_hash, auditoria, f"eliminar {tipo}"):
+        return
+
     ruta = input(
         f"Ruta del {tipo} a eliminar: "
     ).strip()
@@ -225,6 +257,41 @@ def registrar_usuario(tabla_hash, auditoria):
         print(f"\n[ERROR] {error}")
 
 
+def eliminar_usuario(tabla_hash, auditoria):
+    print("\n========== ELIMINAR USUARIO ==========")
+
+    nombre = input("Nombre de usuario a eliminar: ").strip()
+
+    if nombre == "":
+        print("\n[ERROR] Debe ingresar un nombre de usuario.")
+        return
+
+    objetivo = tabla_hash.buscarUsuario(nombre)
+
+    if objetivo is None:
+        print(f"\n[ERROR] El usuario '{nombre}' no existe.")
+        return
+
+    # Un administrador no puede borrar su propia cuenta con la sesión abierta.
+    # Así siempre queda al menos un administrador y nadie se queda sin acceso.
+    if objetivo is tabla_hash.usuarioActivo:
+        print("\n[ERROR] No puede eliminar la cuenta con la que tiene la sesión abierta.")
+        return
+
+    confirmar = input(
+        f"¿Eliminar al usuario '{objetivo.nombre}' (rol {objetivo.rol})? (s/n): "
+    ).strip().lower()
+
+    if confirmar != "s":
+        print("\n[INFO] Operación cancelada.")
+        return
+
+    if tabla_hash.eliminarUsuario(nombre, registrar_evento=auditoria.registrar):
+        print(f"\n[OK] {tabla_hash.ultimo_mensaje}")
+    else:
+        print(f"\n[ERROR] {tabla_hash.ultimo_mensaje}")
+
+
 def iniciar_sesion(tabla_hash, auditoria):
     print("\n========== INICIAR SESIÓN ==========")
 
@@ -243,8 +310,12 @@ def iniciar_sesion(tabla_hash, auditoria):
         print("\n[OK] Sesión iniciada correctamente.")
         print(f"Usuario: {usuario.nombre}")
         print(f"Rol: {usuario.rol}")
-    else:
-        print(f"\n[ERROR] {tabla_hash.ultimo_mensaje}")
+        return True
+
+    # Mensaje genérico: no revela si el usuario existe o si falló la contraseña
+    # (la auditoría sí guarda el motivo exacto).
+    print("\n[ERROR] Usuario o contraseña incorrectos.")
+    return False
 
 
 def cerrar_sesion(tabla_hash, auditoria):
@@ -370,118 +441,142 @@ def mostrar_auditoria(auditoria):
 
 
 # ============================================================
+# ACCESO POR ROL
+# ============================================================
+
+def definir_acciones(arbol, tabla_hash, auditoria, red):
+    """Lista de todas las acciones del sistema y quién puede usarlas.
+
+    El administrador ve todas. El rol 'usuario' solo ve las que tienen
+    solo_admin=False (consultas); las delicadas (crear/borrar archivos y
+    carpetas, registrar/borrar usuarios, tabla hash, auditoría y modificar
+    la red) no aparecen en su menú.
+    """
+
+    def red_y_enrutamiento():
+        menu_grafos(
+            red,
+            registrar=auditoria.registrar,
+            solo_lectura=not tabla_hash.esAdministrador()
+        )
+
+    return [
+        Accion("ARCHIVOS", "Crear carpeta",
+               lambda: crear_carpeta(arbol, auditoria, tabla_hash), True),
+        Accion("ARCHIVOS", "Crear archivo",
+               lambda: crear_archivo(arbol, auditoria, tabla_hash), True),
+        Accion("ARCHIVOS", "Buscar archivo",
+               lambda: buscar_archivo(arbol), False),
+        Accion("ARCHIVOS", "Mostrar árbol",
+               lambda: mostrar_arbol(arbol), False),
+        Accion("ARCHIVOS", "Eliminar archivo",
+               lambda: eliminar_elemento(arbol, auditoria, tabla_hash, "archivo"), True),
+        Accion("ARCHIVOS", "Eliminar carpeta",
+               lambda: eliminar_elemento(arbol, auditoria, tabla_hash, "carpeta"), True),
+        Accion("ARCHIVOS", "Cambiar directorio",
+               lambda: cambiar_directorio(arbol), False),
+        Accion("ARCHIVOS", "Mostrar ruta actual",
+               lambda: mostrar_ruta_actual(arbol), False),
+
+        Accion("USUARIOS", "Registrar usuario",
+               lambda: registrar_usuario(tabla_hash, auditoria), True),
+        Accion("USUARIOS", "Eliminar usuario",
+               lambda: eliminar_usuario(tabla_hash, auditoria), True),
+        Accion("USUARIOS", "Mostrar usuario activo",
+               lambda: mostrar_usuario_activo(tabla_hash), False),
+        Accion("USUARIOS", "Mostrar tabla hash",
+               lambda: mostrar_tabla_hash(tabla_hash), True),
+        Accion("USUARIOS", "Demostrar colisiones",
+               lambda: demostrar_colisiones(tabla_hash, auditoria), True),
+
+        Accion("SISTEMA", "Ver auditoría",
+               lambda: mostrar_auditoria(auditoria), True),
+        Accion("SISTEMA", "Red y enrutamiento",
+               red_y_enrutamiento, False),
+    ]
+
+
+def acciones_para_rol(acciones, es_administrador):
+    """Filtra las acciones que puede ver y ejecutar el rol de la sesión."""
+    if es_administrador:
+        return list(acciones)
+    return [accion for accion in acciones if not accion.solo_admin]
+
+
+def preparar_administrador_inicial(tabla_hash, auditoria):
+    """Crea la cuenta de administrador inicial si la tabla está vacía."""
+    if len(tabla_hash) == 0:
+        tabla_hash.registrarUsuario(
+            ADMIN_INICIAL_USUARIO,
+            ADMIN_INICIAL_CONTRASENA,
+            "administrador"
+        )
+        auditoria.registrar(
+            f"Sistema: administrador inicial '{ADMIN_INICIAL_USUARIO}' creado"
+        )
+
+
+def menu_sesion(tabla_hash, auditoria, acciones):
+    """Menú de la sesión activa; termina al cerrar sesión."""
+    while tabla_hash.haySesionActiva():
+        disponibles = acciones_para_rol(acciones, tabla_hash.esAdministrador())
+        mostrar_menu_rol(tabla_hash, disponibles)
+
+        opcion = input("Seleccione una opción: ").strip()
+
+        if opcion == "0":
+            cerrar_sesion(tabla_hash, auditoria)
+            return
+
+        if not opcion.isdigit() or not 1 <= int(opcion) <= len(disponibles):
+            print("\n[ERROR] Opción inválida.")
+            continue
+
+        accion = disponibles[int(opcion) - 1]
+
+        # Segunda barrera: aunque el menú ya oculta estas acciones al rol
+        # 'usuario', se vuelve a comprobar el permiso antes de ejecutarlas.
+        if accion.solo_admin and not tabla_hash.verificarPermiso(
+                accion.descripcion.lower(),
+                registrar_evento=auditoria.registrar):
+            print(f"\n[ACCESO DENEGADO] {tabla_hash.ultimo_mensaje}")
+            continue
+
+        accion.ejecutar()
+
+
+# ============================================================
 # PROGRAMA PRINCIPAL
 # ============================================================
 
-def main():
-    auditoria = Auditoria()
+def main(archivo_auditoria="network_audit_log.txt"):
+    auditoria = Auditoria(archivo_auditoria)
     arbol = ArbolDirectorios()
     tabla_hash = TablaHash()
     red = GrafoServidores()
 
-    print("========================================")
-    print(" SISTEMA DE ARCHIVOS DISTRIBUIDO")
-    print("========================================")
-    print("\nSistema iniciado correctamente.")
-    print("Árbol de directorios: OK")
-    print("Tabla hash: OK")
-    print("Auditoría: OK")
-    print("Red y enrutamiento: OK")
+    preparar_administrador_inicial(tabla_hash, auditoria)
+    acciones = definir_acciones(arbol, tabla_hash, auditoria, red)
 
-    while True:
-        mostrar_menu(tabla_hash)
+    try:
+        while True:
+            mostrar_menu_inicio()
 
-        opcion = input("Seleccione una opción: ").strip()
+            opcion = input("Seleccione una opción: ").strip()
 
-        # ---------------- ÁRBOL ----------------
+            if opcion == "1":
+                if iniciar_sesion(tabla_hash, auditoria):
+                    menu_sesion(tabla_hash, auditoria, acciones)
 
-        if opcion == "1":
-            crear_carpeta(arbol, auditoria)
+            elif opcion == "2":
+                print("\nSaliendo del sistema...")
+                break
 
-        elif opcion == "2":
-            crear_archivo(arbol, auditoria)
+            else:
+                print("\n[ERROR] Opción inválida.")
 
-        elif opcion == "3":
-            buscar_archivo(arbol)
-
-        elif opcion == "4":
-            mostrar_arbol(arbol)
-
-        elif opcion == "5":
-            eliminar_elemento(
-                arbol,
-                auditoria,
-                "archivo"
-            )
-
-        elif opcion == "6":
-            eliminar_elemento(
-                arbol,
-                auditoria,
-                "carpeta"
-            )
-
-        elif opcion == "7":
-            cambiar_directorio(arbol)
-
-        elif opcion == "8":
-            mostrar_ruta_actual(arbol)
-
-        # ---------------- HASH ----------------
-
-        elif opcion == "9":
-            registrar_usuario(
-                tabla_hash,
-                auditoria
-            )
-
-        elif opcion == "10":
-            iniciar_sesion(
-                tabla_hash,
-                auditoria
-            )
-
-        elif opcion == "11":
-            cerrar_sesion(
-                tabla_hash,
-                auditoria
-            )
-
-        elif opcion == "12":
-            mostrar_usuario_activo(tabla_hash)
-
-        elif opcion == "13":
-            mostrar_tabla_hash(tabla_hash)
-
-        elif opcion == "14":
-            demostrar_colisiones(
-                tabla_hash,
-                auditoria
-            )
-
-        # ---------------- AUDITORÍA ----------------
-
-        elif opcion == "15":
-            mostrar_auditoria(auditoria)
-
-        # ---------------- GRAFOS ----------------
-
-        elif opcion == "16":
-            menu_grafos(
-                red,
-                registrar=auditoria.registrar
-            )
-
-        # ---------------- SALIR ----------------
-
-        elif opcion == "0":
-            print("\nSaliendo del sistema...")
-            break
-
-        else:
-            print(
-                "\n[ERROR] Opción inválida."
-            )
+    except (EOFError, KeyboardInterrupt):
+        print("\n\nEntrada finalizada. Saliendo del sistema...")
 
 
 if __name__ == "__main__":

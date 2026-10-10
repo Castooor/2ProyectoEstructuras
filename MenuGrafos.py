@@ -28,11 +28,14 @@ def _pedir_latencia(mensaje):
         return int(valor) if valor.is_integer() else valor
 
 
-def menu_grafos(red, registrar=None):
+def menu_grafos(red, registrar=None, solo_lectura=False):
     """
-    red:       la instancia ÚNICA de GrafoServidores del sistema.
-    registrar: función opcional registrar(texto) para la auditoría.
-               Si es None, no se registra nada.
+    red:         la instancia ÚNICA de GrafoServidores del sistema.
+    registrar:   función opcional registrar(texto) para la auditoría.
+                 Si es None, no se registra nada.
+    solo_lectura: si es True (rol "usuario") solo se pueden consultar la red,
+                 calcular rutas y hacer ping; agregar servidores y crear o
+                 eliminar conexiones (opciones 1, 2 y 3) quedan bloqueadas.
     """
     def log(texto):
         if registrar:
@@ -40,9 +43,12 @@ def menu_grafos(red, registrar=None):
 
     while True:
         print("\n========== RED Y ENRUTAMIENTO ==========")
-        print("1. Agregar servidor")
-        print("2. Agregar conexión")
-        print("3. Eliminar conexión")
+        if solo_lectura:
+            print("(Modo consulta: su rol no permite modificar la red)")
+        else:
+            print("1. Agregar servidor")
+            print("2. Agregar conexión")
+            print("3. Eliminar conexión")
         print("4. Consultar conexiones de un servidor")
         print("5. Mostrar la red")
         print("6. Simular envío de paquete (Dijkstra)")
@@ -50,7 +56,10 @@ def menu_grafos(red, registrar=None):
         print("0. Volver")
         opcion = input("Seleccione una opción: ").strip()
 
-        if opcion == "1":
+        if solo_lectura and opcion in ("1", "2", "3"):
+            print("Acción no permitida para su rol.")
+
+        elif opcion == "1":
             s = _pedir_texto("Nombre del servidor: ")
             if s in red.servidores:
                 print(f"El servidor {s} ya existe.")
