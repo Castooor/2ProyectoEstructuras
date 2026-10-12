@@ -29,6 +29,9 @@ Uso basico desde el menu de integracion
 
 # La entidad NodoUsuario vive en su propio archivo (responsabilidad unica, SRP);
 # TablaHash importa la clase para poder construir las cadenas de cada indice.
+import json
+import os
+
 from NodoUsuario import NodoUsuario
 
 # Tamano de la tabla hash: 50 posiciones o "buckets".
@@ -50,7 +53,7 @@ class TablaHash:
     esta libre el valor es None (cadena vacia).
     """
 
-    def __init__(self, tamano=TAMANO_TABLA):
+    def __init__(self, tamano=TAMANO_TABLA, archivo=None):
         if not isinstance(tamano, int) or tamano <= 0:
             raise ValueError("El tamano de la tabla debe ser un entero positivo.")
         self.tamano = tamano
@@ -59,6 +62,100 @@ class TablaHash:
         self.intentosFallidos = 0
         self.ultimo_mensaje = ""
         self._usuario_activo = None
+        # Persistencia: si se indica un archivo JSON, los usuarios se cargan al
+        # crear la tabla y se guardan solos tras cada registro/eliminacion.
+        self.archivo = archivo
+        self.ultimo_error = ""      # ultimo problema de persistencia ("" si no hubo)
+        self._cargando = False
+        if self.archivo:
+            self.cargar()
+
+    # ------------------------------------------------------------------
+    # 0) PERSISTENCIA (archivo JSON)
+    # ------------------------------------------------------------------
+    def guardar(self):
+        """Escribe todos los usuarios en el archivo JSON (si hay archivo).
+
+        Nunca lanza excepciones: devuelve True si guardo (o si no hay archivo)
+        y False si fallo; en ese caso el motivo queda en 'ultimo_error'.
+        Se escribe primero a un temporal y luego se reemplaza, para que un
+        corte a mitad de escritura no deje el archivo de usuarios a medias.
+        """
+        if not self.archivo or self._cargando:
+            return True
+        temporal = self.archivo + ".tmp"
+        try:
+            usuarios = []
+            for indice in range(self.tamano):
+                cadena = []
+                actual = self.tabla[indice]
+                while actual is not None:
+                    cadena.append({"nombre": actual.nombre,
+                                   "contrasena": actual.contrasena,
+                                   "rol": actual.rol})
+                    actual = actual.siguiente
+                # Se guarda al reves: al recargar cada usuario se enlaza al
+                # inicio de su cadena, asi el orden original se conserva.
+                usuarios.extend(reversed(cadena))
+            with open(temporal, "w", encoding="utf-8") as f:
+                json.dump({"usuarios": usuarios}, f, ensure_ascii=False,
+                          indent=2, allow_nan=False)
+            os.replace(temporal, self.archivo)
+        except (OSError, ValueError, TypeError) as error:
+            self.ultimo_error = "No se pudo guardar '%s': %s" % (self.archivo, error)
+            try:
+                os.remove(temporal)
+            except OSError:
+                pass
+            return False
+        self.ultimo_error = ""
+        return True
+
+    def _guardar_y_avisar(self, registrar_evento):
+        """Guarda en disco; si falla, lo deja en la auditoria y devuelve un
+        texto de advertencia para el mensaje que ve el usuario."""
+        if self.guardar():
+            return ""
+        self._notificar(registrar_evento, "ERROR de persistencia: %s" % self.ultimo_error)
+        return " ADVERTENCIA: no se pudo guardar en disco."
+
+    def _respaldar_corrupto(self):
+        """Aparta el archivo danado como '<archivo>.corrupto' (sin lanzar errores)."""
+        try:
+            os.replace(self.archivo, self.archivo + ".corrupto")
+        except OSError:
+            pass
+
+    def cargar(self):
+        """Lee el archivo JSON y reconstruye la tabla hash con sus cadenas.
+
+        Si el archivo no existe no hace nada (primera ejecucion). Si esta
+        danado, lo respalda como '<archivo>.corrupto' y arranca vacia dejando
+        el motivo en 'ultimo_error'. Nunca lanza excepciones.
+        Devuelve la cantidad de usuarios cargados.
+        """
+        if not self.archivo or not os.path.exists(self.archivo):
+            return 0
+        try:
+            with open(self.archivo, "r", encoding="utf-8") as f:
+                datos = json.load(f)
+            registros = datos["usuarios"]
+            self._cargando = True
+            for r in registros:
+                self.registrarUsuario(r["nombre"], r["contrasena"], r["rol"])
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            self._cargando = False
+            self.tabla = [None] * self.tamano
+            self.total_usuarios = 0
+            self._respaldar_corrupto()
+            self.ultimo_error = ("Archivo de usuarios '%s' danado o ilegible; "
+                                 "se respaldo como .corrupto y se inicio vacio." % self.archivo)
+            self.ultimo_mensaje = self.ultimo_error
+            return 0
+        finally:
+            self._cargando = False
+        self.ultimo_mensaje = "Usuarios cargados desde '%s'." % self.archivo
+        return self.total_usuarios
 
     # ------------------------------------------------------------------
     # 1) FUNCION HASH: convierte el nombre de usuario en un indice valido
@@ -172,6 +269,7 @@ class TablaHash:
         self.ultimo_mensaje = "Usuario '%s' registrado en el indice %d." % (nuevo.nombre, indice)
         self._notificar(registrar_evento,
                         "Registro de usuario: %s (rol %s)" % (nuevo.nombre, nuevo.rol))
+        self.ultimo_mensaje += self._guardar_y_avisar(registrar_evento)
         return True
 
     def buscarUsuario(self, nombre):
@@ -307,6 +405,7 @@ class TablaHash:
             self._usuario_activo = None
         self.ultimo_mensaje = "Usuario '%s' eliminado del indice %d." % (nodo.nombre, indice)
         self._notificar(registrar_evento, "Eliminacion de usuario: %s" % nodo.nombre)
+        self.ultimo_mensaje += self._guardar_y_avisar(registrar_evento)
         return True
 
     # ------------------------------------------------------------------
@@ -508,4 +607,3 @@ def _demo():
 
 if __name__ == "__main__":
     _demo()
-

@@ -1,12 +1,85 @@
+import json
+import math
+import os
 from collections import deque
 
 
 class GrafoServidores:
     """Grafo ponderado no dirigido. Vértices = servidores, aristas = latencia (ms)."""
 
-    def __init__(self):
+    def __init__(self, archivo=None):
         # Lista de adyacencia: { "A": {"B": latencia, "C": latencia}, ... }
         self.servidores = {}
+        # Persistencia: si se indica un archivo JSON, la red se carga al crear
+        # el grafo; para guardarla se llama a guardar() tras cada cambio.
+        self.archivo = archivo
+        self.ultimo_error = ""      # ultimo problema de persistencia ("" si no hubo)
+        if self.archivo:
+            self.cargar()
+
+    # ------------------------------------------------------------------
+    # Persistencia (archivo JSON)
+    # ------------------------------------------------------------------
+    def guardar(self):
+        """Guarda la red completa en el archivo JSON (si hay archivo).
+
+        Nunca lanza excepciones: devuelve True si guardó (o si no hay archivo)
+        y False si falló; en ese caso el motivo queda en 'ultimo_error'.
+        """
+        if not self.archivo:
+            return True
+        temporal = self.archivo + ".tmp"
+        try:
+            with open(temporal, "w", encoding="utf-8") as f:
+                json.dump({"servidores": self.servidores}, f, ensure_ascii=False,
+                          indent=2, allow_nan=False)
+            os.replace(temporal, self.archivo)
+        except (OSError, ValueError, TypeError) as error:
+            self.ultimo_error = f"No se pudo guardar '{self.archivo}': {error}"
+            try:
+                os.remove(temporal)
+            except OSError:
+                pass
+            return False
+        self.ultimo_error = ""
+        return True
+
+    def cargar(self):
+        """Reconstruye la red desde el archivo JSON.
+
+        Si el archivo no existe no hace nada. Si está dañado lo respalda como
+        '<archivo>.corrupto', deja la red vacía y el motivo en 'ultimo_error'.
+        Nunca lanza excepciones. Devuelve True si cargó datos.
+        """
+        if not self.archivo or not os.path.exists(self.archivo):
+            return False
+        try:
+            with open(self.archivo, "r", encoding="utf-8") as f:
+                datos = json.load(f)
+            nueva = {}
+            for servidor, vecinos in datos["servidores"].items():
+                nueva[servidor] = {}
+                for vecino, latencia in vecinos.items():
+                    if (isinstance(latencia, bool)
+                            or not isinstance(latencia, (int, float))
+                            or not math.isfinite(latencia) or latencia < 0):
+                        raise ValueError("latencia invalida")
+                    nueva[servidor][vecino] = latencia
+            for servidor, vecinos in nueva.items():       # toda arista debe ser bidireccional
+                for vecino, latencia in vecinos.items():
+                    if vecino not in nueva or nueva[vecino].get(servidor) != latencia:
+                        raise ValueError("red inconsistente")
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            self.servidores = {}
+            try:
+                os.replace(self.archivo, self.archivo + ".corrupto")
+            except OSError:
+                pass
+            self.ultimo_error = (f"Archivo de red '{self.archivo}' dañado o ilegible; "
+                                 "se respaldó como .corrupto y se inició vacía.")
+            return False
+        self.servidores = nueva
+        return True
 
     # ------------------------------------------------------------------
     # Operaciones básicas
@@ -18,8 +91,8 @@ class GrafoServidores:
 
     def agregar_conexion(self, origen, destino, latencia):
         """Agrega una conexión bidireccional con peso = latencia."""
-        if latencia < 0:
-            raise ValueError("La latencia no puede ser negativa (Dijkstra no lo soporta).")
+        if not math.isfinite(latencia) or latencia < 0:
+            raise ValueError("La latencia debe ser un número finito y no negativo.")
         self.agregar_servidor(origen)
         self.agregar_servidor(destino)
         self.servidores[origen][destino] = latencia
@@ -31,6 +104,47 @@ class GrafoServidores:
             self.servidores[origen].pop(destino, None)
         if destino in self.servidores:
             self.servidores[destino].pop(origen, None)
+
+    def modificar_latencia(self, origen, destino, nueva_latencia):
+        """Cambia la latencia de una conexión existente (en ambos sentidos).
+
+        Devuelve True si se modificó; False si la conexión no existe.
+        """
+        if not math.isfinite(nueva_latencia) or nueva_latencia < 0:
+            raise ValueError("La latencia debe ser un número finito y no negativo.")
+        if origen not in self.servidores or destino not in self.servidores[origen]:
+            return False
+        self.servidores[origen][destino] = nueva_latencia
+        self.servidores[destino][origen] = nueva_latencia
+        return True
+
+    def renombrar_servidor(self, actual, nuevo):
+        """Cambia el nombre de un servidor conservando todas sus conexiones.
+
+        Devuelve True si se renombró; False si 'actual' no existe o 'nuevo'
+        ya está en uso.
+        """
+        if actual not in self.servidores or nuevo in self.servidores:
+            return False
+        renombrada = {}
+        for servidor, vecinos in self.servidores.items():
+            clave = nuevo if servidor == actual else servidor
+            renombrada[clave] = {(nuevo if v == actual else v): lat
+                                 for v, lat in vecinos.items()}
+        self.servidores = renombrada
+        return True
+
+    def eliminar_servidor(self, servidor):
+        """Elimina un servidor y todas las conexiones que llegan a él.
+
+        Devuelve True si existía y se eliminó; False si no existe.
+        """
+        if servidor not in self.servidores:
+            return False
+        for vecino in self.servidores[servidor]:
+            self.servidores[vecino].pop(servidor, None)
+        del self.servidores[servidor]
+        return True
 
     def consultar_conexiones(self, servidor):
         """Devuelve {vecino: latencia} o None si el servidor no existe."""

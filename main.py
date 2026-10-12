@@ -4,11 +4,16 @@ from TablaHash import TablaHash
 from GrafoServidores import GrafoServidores
 from MenuGrafos import menu_grafos
 from collections import namedtuple
+import os
 
 
-# Cuenta que se crea al arrancar para poder iniciar sesión por primera vez.
-# Los usuarios viven solo en memoria: al cerrar el programa se pierden y esta
-# cuenta se vuelve a crear en la siguiente ejecución.
+# Archivos de persistencia (junto a main.py, sin importar desde dónde se ejecute).
+CARPETA_DATOS = os.path.dirname(os.path.abspath(__file__))
+ARCHIVO_USUARIOS = os.path.join(CARPETA_DATOS, "usuarios.json")
+ARCHIVO_RED = os.path.join(CARPETA_DATOS, "red_servidores.json")
+
+# Cuenta que se crea solo la primera vez (cuando no hay usuarios guardados)
+# para poder iniciar sesión. Después los usuarios se leen de usuarios.json.
 ADMIN_INICIAL_USUARIO = "admin"
 ADMIN_INICIAL_CONTRASENA = "admin123"
 
@@ -549,11 +554,19 @@ def menu_sesion(tabla_hash, auditoria, acciones):
 # PROGRAMA PRINCIPAL
 # ============================================================
 
-def main(archivo_auditoria="network_audit_log.txt"):
+def main(archivo_auditoria="network_audit_log.txt",
+         archivo_usuarios=None, archivo_red=None):
+    """Si no se indican archivos de usuarios/red, todo vive solo en memoria
+    (así los tests no tocan el disco). Abajo, el programa real pasa los reales."""
     auditoria = Auditoria(archivo_auditoria)
     arbol = ArbolDirectorios()
-    tabla_hash = TablaHash()
-    red = GrafoServidores()
+    tabla_hash = TablaHash(archivo=archivo_usuarios)
+    red = GrafoServidores(archivo=archivo_red)
+
+    # Si algún archivo de datos estaba dañado, queda constancia en la auditoría.
+    for modulo in (tabla_hash, red):
+        if modulo.ultimo_error:
+            auditoria.registrar(f"Sistema: {modulo.ultimo_error}")
 
     preparar_administrador_inicial(tabla_hash, auditoria)
     acciones = definir_acciones(arbol, tabla_hash, auditoria, red)
@@ -580,4 +593,4 @@ def main(archivo_auditoria="network_audit_log.txt"):
 
 
 if __name__ == "__main__":
-    main()
+    main(archivo_usuarios=ARCHIVO_USUARIOS, archivo_red=ARCHIVO_RED)
