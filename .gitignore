@@ -1,5 +1,12 @@
+# Entorno virtual de Python
+.venv/
+
+# Configuración de PyCharm
+.idea/
+
+# Archivos temporales de Python
 __pycache__/
-*.py[cod]
-*$py.class
-.pytest_cache/
-*.log
+*.pyc
+
+# Archivo de auditoría generado por el sistema
+network_audit_log.txt
