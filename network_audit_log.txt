@@ -3,3 +3,5 @@
 [2026-10-11 18:12:05] Sistema: administrador inicial 'admin' creado
 [2026-10-11 18:12:11] Inicio de sesion fallido (contrasena incorrecta): admin
 [2026-10-11 18:12:42] Inicio de sesion exitoso: admin
+[2026-10-12 12:15:25] Inicio de sesion fallido (contrasena incorrecta): admin
+[2026-10-12 12:16:43] Inicio de sesion exitoso: admin
