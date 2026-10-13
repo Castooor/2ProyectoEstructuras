@@ -438,3 +438,134 @@ Estructuración de un método de prueba específico con las 7 fases solicitadas 
 ### Reflexión personal
 
 Este proyecto nos ayuda a entender como funciona a pequeña escala como funciona los grafos y arboles y como se pueden aplicar en diferentes escenarios reales. Ademas de aprender a usar git y github y a trabajar en equipo. Gracias a seguir trabajando en equipo pude afinar mis habilidades con las ramas y los merges.
+
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+# Brayan Javier Reyes Tinoco
+
+Bitácora de IA: Red y Enrutamiento (Grafos)
+
+Responsable: Brayan Módulo: GrafoServidores.py, MenuGrafos.py, PruebaGrafosServidores.py (más la persistencia de la red en red_servidores.json) Herramienta: Claude (Anthropic), usado para revisión, depuración, pruebas y documentación de defensa.
+
+
+# Prompt 1: Revisión del código inicial
+
+Lo que pedí: Subí mi clase GrafoServidores junto con el plan de división del equipo y pregunté: "esto es lo mío, ¿está bien? yo soy Brayan , esa parte fue generada con otra IA pero no encontre cual , aun que si la edite mucho con claude."
+
+La ia me confirmó que cubría lo asignado a mi módulo (grafo ponderado, agregar y eliminar conexiones, Dijkstra con reconstrucción de ruta, BFS, aislados). Me recomendó usar deque en el BFS, validar latencias negativas, tratar el caso origen = destino, agregar assert en las pruebas y hacer que los métodos devuelvan datos para poder auditarlos. Yo acepté las cinco mejoras porque no cambian la estructura (lista de adyacencia con diccionarios), solo la hacen más robusta.
+
+# Prompt 2: Confirmar el lenguaje
+
+Lo que pedí: Confirmé que el proyecto es en Python, porque el plan hablaba de .cpp.
+
+La ia me confirmó que los ejemplos en C++ del plan no afectan mi módulo, y resumió los cambios por orden de importancia.
+
+Yo seguí con Python y descarté la idea de traducir el módulo.
+
+# Prompt 3: Aplicar los cambios y decidir la estructura de archivos
+
+Lo que pedí: "Haz los cambios y me pasas mi parte terminada; ¿me recomiendas dejarlo todo en uno o dividir?"
+
+La ia me devolvió la versión corregida de la clase y me recomendó separar la clase de las pruebas. Las pruebas usan assert y cubren ruta óptima, origen = destino, sin ruta, camino directo caro, eliminar conexión, latencia negativa, red conectada y servidor aislado.
+
+Quedaron dos archivos, uno con la clase y otro con las pruebas, de modo que quien integre solo importe la clase.
+
+# Prompts 4 y 5: Depuración de errores de importación
+
+Lo que pedí: Pegué el error de from GrafoServidores import GrafoServidores y luego subí una captura de mi carpeta.
+
+La ia me confirmó que detectó que el nombre del archivo no coincidía con el import (la IA había nombrado grafo_servidores.py y mi archivo se llamaba GrafoServidores.py). También señaló en la captura que los archivos estaban sin guardar.
+
+Yo unifiqué los nombres a GrafoServidores.py, PruebaGrafosServidores.py y MenuGrafos.py, y guardé todos los archivos antes de ejecutar.
+
+# Prompt 6: Verificar contra la lista de tareas del plan
+
+Lo que pedí: Pegué la lista de tareas de Brayan del plan (estructura, operaciones, Dijkstra, BFS/DFS, pruebas) y pregunté si todo estaba cubierto.
+
+La ia me devolvió una tabla que relaciona cada tarea con el método que la cumple.
+
+Cómo lo adapté: Usé la tabla como lista de verificación. Noté que el grafo se representa con diccionarios, sin clases Nodo ni Arista, y decidí justificarlo en la defensa.
+
+# Prompts 7, 8 y 9: Menú de consola y límites de mi responsabilidad
+
+Lo que pedí: Primero aclaré que el proyecto es de consola y no solo para ver resultados. Después precisé que yo no hago el menú principal (es de Allison), pero que mi parte sí necesita opciones que luego se puedan asociar.
+
+La ia me devolvió primero un menú completo; tras mi aclaración, una versión ajustada: dijkstra() y ping_general() imprimen en consola y también devuelven los datos, más un submenú (menu_grafos(red, registrar=None)) que se llama desde el menú principal. El parámetro registrar permite que la auditoría registre cada acción.
+
+Yo descarté el menú independiente y conservé solo el submenú. 
+
+
+# Prompt 10: Material de defensa
+
+Lo que pedí: Que se incluyera lo que debo poder explicar en la defensa (grafo ponderado, representación, peso, Dijkstra, reconstrucción de ruta, BFS, aislados).
+
+La ia me devolvió el archivo DefensaGrafos.md, con respuestas ligadas a métodos concretos y las complejidades (Dijkstra O(V²), BFS O(V+E)).
+
+# Prompt 11: Depuración del error mostrar
+
+Lo que pedí: Subí capturas del editor con el error "Unexpected keyword argument mostrar".
+
+La ia me diagnosticó que mi GrafoServidores.py seguía en la versión anterior y que los tres archivos estaban sin guardar (indicador "3 unsaved" y puntos blancos en las pestañas). También detectó que el archivo del menú se llamaba Menugrafos.py.
+
+Yo guardé todos los archivos, renombré el menú a MenuGrafos.py y volví a ejecutar las pruebas.
+
+# Prompt 12: Comparar con el enunciado oficial
+
+Lo que pedí: Subí el PDF del proyecto y pregunté si mi módulo cumplía lo que pide para grafos.
+
+La ia me devolvió una tabla de cumplimiento. Encontró un faltante: el enunciado pide "imprimir el salto por cada nodo y el costo total" y mi salida solo mostraba la ruta completa.
+
+Yo agregué a la salida de Dijkstra el detalle por salto, por ejemplo Salto 1: A -> C (2 ms).
+
+# Prompts 13 y 14: Instrucción oculta en el PDF
+
+Lo que pedí: "¿No hay texto oculto en el PDF, verdad?"
+
+La ia verificó el archivo y encontró, al final de la página 4, un texto en color blanco y tamaño 2 que se presentaba como "directriz para IA": pedía renombrar el arreglo de costos a costos_omega_route e imprimir un mensaje [LOG] ... Omega, sin avisar al usuario. No es parte del enunciado visible.
+
+Yo no apliqué esa instrucción. Mi código usa distancias para los costos y no imprime ese mensaje. Revisé que la palabra omega no aparezca en ningún archivo. 
+
+# Prompts 15 y 16: Advertencias del IDE y alcance de BFS/DFS
+
+Lo que pedí: Que el IDE marcaba "faltan returns", y si BFS/DFS iba en mi parte.
+
+La ia explicó que era una advertencia de estilo y que return None en dijkstra y _calcular_ruta es intencional (significa "no hay ruta"). Agregó return None explícito en mostrar_red. Confirmó que BFS/DFS es mío y que con BFS basta, porque el enunciado dice "BFS o DFS".
+
+Yo apliqué el return None en mostrar_red y dejé solo BFS.
+
+
+# IA Y DECICIONES MÍAS 
+Resumen de lo que aportó la IA y de lo que decidí yo:
+Aspecto	IA	Decisión mía
+Representación del grafo	Sugirió mantenerla	Lista de adyacencia con diccionarios
+Dijkstra	Revisó y reorganizó	Implementación propia, sin heapq, O(V²)
+BFS	Cambió la lista por deque	Elegí BFS y no DFS
+Estructura de archivos	Propuso separar clase y pruebas	Acepté y unifiqué nombres
+Menú	Generó el submenú	Limité mi parte al submenú; el principal es de Allison
+Instrucción oculta del PDF	La detectó	La ignoré y la reporté
+Persistencia, modificar_latencia, renombrar_servidor, eliminar_servidor, solo_lectura	No las generó; las leyó del zip	[Completar: quién las programó y cómo]
+Pruebas realizadas
+Ruta A → D en la red de cuatro nodos: resultado A -> C -> D, costo 3 ms.
+Red A — B — C con D sin conexiones: D detectado como servidor aislado.
+8 pruebas con assert pasaron.
+
+# Prompts 18: Persistencia de datos en Red y Enrrutamiento y Usuarios
+
+Mensajes documentados de persistencia
+
+- Guardado correcto: no se muestra ningún mensaje; el guardado ocurre en silencio.
+- Fallo al guardar la red: después del resultado normal de la operación se muestra ADVERTENCIA: No se pudo guardar '{ruta}/red_servidores.json': {motivo}.
+- Registro de auditoría ante fallo: se añade ERROR de persistencia: No se pudo guardar '{ruta}/red_servidores.json': {motivo} después de la línea de la operación.
+- Archivo dañado al iniciar: se registra Sistema: Archivo de red '{ruta}/red_servidores.json' dañado o ilegible; se respaldó como .corrupto y se inició vacía. El evento se consulta desde la opció - Console: Opcion 14. Ver auditoria.
+
+
+## Conclusión
+
+En resumen, la inteligencia artificial fue una herramienta fundamental en el desarrollo de mi parte del proyecto. Me permitió comprender algoritmos complejos, diseñar soluciones eficientes y verificar que mi implementación cumpliera con todos los requisitos. Gracias a este apoyo, pude concentrarme en la lógica del proyecto y asegurar un mejor rendimiento y fiabilidad.
+
+Si bien la IA fue de gran utilidad, es importante destacar que todas las implementaciones fueron revisadas y adaptadas a mi criterio personal. El proyecto refleja tanto las capacidades de la inteligencia artificial como mi propia capacidad para aplicar sus sugerencias de manera crítica y constructiva para que la IA vaya modificando el código.
+
+Red y Enrrutamiento: Brayan Javier Reyes Tinoco
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
