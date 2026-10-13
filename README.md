@@ -174,6 +174,7 @@ Ejemplos representativos de solicitudes realizadas:
 - “Ayúdame a integrar el menú de grafos con el menú principal y la auditoría sin reemplazar las partes existentes”.
 - “Guíame paso a paso para probar la creación, búsqueda y eliminación de archivos desde el menú”.
 - “Ayúdame a interpretar la salida de las pruebas automatizadas y documentar los resultados”.
+- "Explicame como funciona una tabla hash" (Esto antes de la explicacion en clase).
 
 Las sugerencias se revisaron de acuerdo con el código y los resultados obtenidos. El equipo debe poder explicar las estructuras de datos, los algoritmos y las decisiones de implementación durante la defensa.
 
