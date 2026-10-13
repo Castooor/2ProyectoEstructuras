@@ -267,3 +267,32 @@ El uso de inteligencia artificial me permitió organizar mejor las tareas de int
 Las respuestas de ChatGPT se utilizaron como orientación y se contrastaron con la ejecución real del programa. Esta experiencia me permitió reforzar mis conocimientos sobre integración de módulos, pruebas manuales, auditoría y uso de Git y GitHub. Reconozco que las sugerencias de una herramienta de inteligencia artificial no sustituyen la comprensión del código ni la responsabilidad de verificar su funcionamiento.
 
 Esta bitácora documenta las actividades en las que utilicé la herramienta como apoyo personal y no pretende atribuirme el desarrollo individual de los módulos asignados a otros integrantes del equipo.
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+# Kenan Joel Solís Brenes
+
+El segundo proyecto de investigación aplicada del curso supuso distintos retos para mi persona y para el grupo en general. El uso de la Inteligencia Artificial como herramienta fue de gran utilidad para la realización de las tareas esperadas según el enunciado del proyecto. Algunos de los puntos más interesantes fueron:
+
+## 1. Análisis para el proyecto
+
+Para mi parte del proyecto tuve que estudiar qué era una tabla hash y cómo implementarla, así como sus funciones y algunas funciones de Python que me resultaran útiles. En el proceso de estudio utilicé Claude para poder entender mejor el funcionamiento de una tabla hash y cómo implementarla en el lenguaje Python.
+
+Algunos de los prompts utilizados fueron:
+
+- "¿Cómo funciona una tabla hash? Explícame cómo se conforma y ejemplos de cómo se puede aplicar."
+- "¿Cómo se manejan las colisiones? Explícame las maneras más conocidas y eficientes de manejarlas y ejemplos de estas."
+
+En ambas ocasiones la inteligencia artificial aportó una respuesta concreta y útil. Todo el estudio realizado fue antes de que la tabla hash fuera vista en clase.
+
+## 2. Revisión y pruebas generales
+
+Para la revisión del trabajo y pruebas varias de manejo de excepciones y errores, se aplicó la inteligencia artificial para realizar distintas pruebas. Como ejemplo de estas se realizaron los siguientes prompts:
+
+> "Realiza pruebas de manera que se generen varios usuarios en la tabla para que se pruebe el manejo de colisiones."
+
+La respuesta de la inteligencia artificial ayudó a resolver dudas sobre funcionamiento y a llegar a casos extremos. La IA también facilitó la resolución de errores de los cuales no se tenían en cuenta y, gracias a su análisis, se pudieron resolver.
+
+## Conclusión
+
+El uso de la inteligencia artificial ayudó a ahorrar tiempo, facilitar el aprendizaje y a encontrar puntos débiles del proyecto, aportando de esta manera a la formación del proyecto sin ser completamente dependiente de esta.
