@@ -186,3 +186,78 @@ El proyecto se trabajó con Git y GitHub, utilizando la rama `Allison` para inte
 - `network_audit_log.txt` se genera durante la ejecución y no se versiona.
 - Las pruebas documentadas son las ejecutadas durante el desarrollo.
 - Antes de la entrega definitiva, el equipo debe confirmar que la rama entregada contiene todos los cambios esperados y que cada integrante puede explicar su parte.
+
+
+## Bitácora personal de uso de inteligencia artificial — Allison
+
+Durante el desarrollo del proyecto *Sistema de Archivos Distribuido y Enrutador de Red*, utilicé ChatGPT como herramienta de apoyo para comprender, integrar, probar y documentar mi parte del trabajo. La inteligencia artificial me ayudó a resolver dudas técnicas y a organizar el proceso de integración, mientras que yo ejecuté los comandos, realicé las pruebas en mi entorno de desarrollo y comprobé los resultados obtenidos.
+
+### 1. Integración del menú principal
+
+**Objetivo:** integrar las funcionalidades del proyecto desde el menú principal, procurando conservar el código existente y facilitar el acceso a los diferentes módulos.
+
+**Prompts utilizados:**
+- «Ayúdame a integrar el menú de grafos con el menú principal y la auditoría sin reemplazar las partes existentes».
+- «Explícame cómo integrar el módulo de grafos y enrutamiento con el menú principal».
+
+**Uso y adaptación:** utilicé las orientaciones de ChatGPT para revisar la integración entre `main.py`, `GrafoServidores.py` y `MenuGrafos.py`. Posteriormente, ejecuté el programa desde PyCharm y comprobé que el menú principal permitiera acceder al submenú de red y regresar al menú principal.
+
+### 2. Pruebas manuales del sistema
+
+**Objetivo:** comprobar el funcionamiento de las operaciones principales y detectar posibles errores durante la ejecución.
+
+**Prompts utilizados:**
+- «Guíame paso a paso para probar la creación, búsqueda y eliminación de archivos desde el menú».
+- «Ayúdame a comprobar el funcionamiento del sistema mediante pruebas manuales».
+
+**Uso y adaptación:** utilicé las instrucciones para realizar pruebas desde la consola de PyCharm. Comprobé la creación de carpetas y archivos, la búsqueda de archivos, la eliminación de archivos y carpetas con sus dependencias, el cambio de directorio y la consulta de la ruta actual. También probé el registro de usuarios, el inicio y cierre de sesión, la resolución de colisiones de la tabla hash, el cálculo de rutas y el diagnóstico de conectividad de la red.
+
+### 3. Verificación de la auditoría
+
+**Objetivo:** comprobar que las operaciones realizadas quedaran registradas y que los registros pudieran consultarse desde el menú.
+
+**Prompt utilizado:**
+- «Ayúdame a comprobar que las operaciones del sistema se registren en el archivo de auditoría».
+
+**Uso y adaptación:** revisé la salida de la opción de auditoría y comprobé que el archivo `network_audit_log.txt` contuviera registros relacionados con las operaciones realizadas durante las pruebas, incluyendo eventos del árbol, la gestión de usuarios y la red.
+
+### 4. Interpretación de las pruebas automatizadas
+
+**Objetivo:** comprender los resultados de las pruebas y documentar las verificaciones realizadas durante el desarrollo.
+
+**Prompt utilizado:**
+- «Ayúdame a interpretar la salida de las pruebas automatizadas y documentar los resultados».
+
+**Uso y adaptación:** ejecuté las pruebas desde la terminal y utilicé ChatGPT para interpretar sus resultados. Se obtuvieron los siguientes resultados:
+
+- `test_arbol.py`: 28 pruebas aprobadas.
+- `PruebaGrafosServidores.py`: 8 pruebas aprobadas.
+
+Estos resultados se documentaron como evidencia de las pruebas ejecutadas, sin asumir que cubren todas las situaciones posibles del sistema.
+
+### 5. Gestión de Git y GitHub
+
+**Objetivo:** incorporar la documentación a la rama de trabajo y comprobar que los cambios estuvieran sincronizados con el repositorio remoto.
+
+**Prompts utilizados:**
+- «¿Cómo subo el README a Git?».
+- «Ayúdame a comprobar el estado de mi rama antes de subir los cambios».
+
+**Uso y adaptación:** seguí las indicaciones para verificar que estuviera trabajando en la rama `Allison`, revisar el estado del repositorio, agregar el archivo `README.md`, crear un commit y ejecutar `git push origin Allison`. Finalmente, comprobé que el README apareciera en GitHub y que la rama local estuviera sincronizada con `origin/Allison`.
+
+### 6. Elaboración de la documentación
+
+**Objetivo:** organizar la información del proyecto en un archivo README claro y comprensible.
+
+**Prompt utilizado:**
+- «Genera el README del proyecto con las funcionalidades, instrucciones de ejecución y resultados de las pruebas».
+
+**Uso y adaptación:** utilicé ChatGPT como apoyo para estructurar la documentación y describir los módulos, las opciones del menú, los comandos de ejecución, las pruebas realizadas y las herramientas utilizadas. Después, incorporé el archivo a la carpeta raíz del proyecto y lo subí al repositorio.
+
+### Reflexión personal
+
+El uso de inteligencia artificial me permitió organizar mejor las tareas de integración, comprender los resultados de las pruebas y resolver dudas relacionadas con la ejecución y el control de versiones. También me ayudó a seguir un proceso ordenado para verificar el funcionamiento del sistema.
+
+Las respuestas de ChatGPT se utilizaron como orientación y se contrastaron con la ejecución real del programa. Esta experiencia me permitió reforzar mis conocimientos sobre integración de módulos, pruebas manuales, auditoría y uso de Git y GitHub. Reconozco que las sugerencias de una herramienta de inteligencia artificial no sustituyen la comprensión del código ni la responsabilidad de verificar su funcionamiento.
+
+Esta bitácora documenta las actividades en las que utilicé la herramienta como apoyo personal y no pretende atribuirme el desarrollo individual de los módulos asignados a otros integrantes del equipo.
